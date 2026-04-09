@@ -87,7 +87,7 @@ function SetPassword() {
       <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-sm">
         <h1 className="text-2xl font-semibold text-gray-800 mb-2">Set a password</h1>
         <p className="text-gray-500 mb-6">
-          You signed in with Google. Create a password to also sign in with email.
+          You are one step away from creating an account. Create a password to also sign in with email.
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
