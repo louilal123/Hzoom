@@ -27,7 +27,7 @@ function Home() {
   const [messageInput, setMessageInput] = useState('');
   const [contactNames, setContactNames] = useState<Record<string, string>>({});
 
-  const user = auth.currentUser;
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
@@ -74,6 +74,18 @@ function Home() {
     });
     return () => unsubscribe();
   }, [selectedConv]);
+
+
+  useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    setUser(currentUser);
+    if (!currentUser) {
+      navigate('/');
+    }
+  });
+  return () => unsubscribe();
+}, [navigate]);
+
 
   const handleLogout = async () => {
     await signOut(auth);
