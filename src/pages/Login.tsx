@@ -26,8 +26,9 @@ function Login() {
       userRef,
       {
         email: user.email,
+        emailLower: user.email.toLowerCase(),
         name: user.displayName || '',
-        photoURL: user.photoURL || '',
+        nameLower: (user.displayName || '').toLowerCase(),
         createdAt: new Date().toISOString(),
         lastLogin: new Date().toISOString(),
         role: 'user',
