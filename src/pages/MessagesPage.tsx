@@ -1,7 +1,7 @@
 import { useEffect, useState, memo, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { auth, db } from '../config/firebase';
-
+import PreCallModal from '../components/PreCallModal';
 import { collection, getDocs } from 'firebase/firestore';
 import {
   listenToConversations,
@@ -13,7 +13,7 @@ import {
 } from '../services/chatService';
 import type { Conversation, Message } from '../services/chatService';
 import { Search, Send, Video, Phone, MoreHorizontal, ChevronLeft } from 'lucide-react';
-import { useCall } from '../contexts/CallContext';
+import { useWebRTC } from '../contexts/WebRTCContext';
 
 
 //  Memoized search input component to prevent focus loss
@@ -116,7 +116,6 @@ export default function MessagesPage() {
     return () => unsubscribe();
   }, [selectedConv]);
 
-  // No debounced search needed anymore – we'll filter locally from allUsers
   // But keep the original searchUsers for cases where you want remote search
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
@@ -131,12 +130,6 @@ export default function MessagesPage() {
       console.error('Send error:', error);
     }
   };
-
-  const startVideoCall = (conv: Conversation) => {
-    const otherId = conv.participants.find(id => id !== currentUser?.uid);
-    alert(`Video call with ${contactNames[otherId!] || otherId} – coming soon!`);
-  };
-
 
   const handleSelectConversation = (conv: Conversation) => {
     navigate(`/messages/${conv.id}`);
@@ -169,23 +162,30 @@ export default function MessagesPage() {
     return !existingContactIds.has(user.id) && nameMatch;
   });
 
-    const { startCall } = useCall();
-       const handleVideoCall = (conv: Conversation) => {
-            console.log('🎥 Video button clicked');
-            const otherId = conv.participants.find(id => id !== currentUser?.uid);
-            console.log('📞 Other user ID:', otherId);
-            if (otherId) {
-                console.log('📞 Calling startCall...');
-                startCall(otherId, true);
-            } else {
-                console.log('❌ No other user found');
-            }
-            };
+//    video using webrtc 
+const { startCall } = useWebRTC();
+const handleVideoCall = (conv: Conversation) => {
+  const otherId = conv.participants.find(id => id !== currentUser?.uid);
+  if (otherId) startCall(otherId, true);
+};
 
-        const handleAudioCall = (conv: Conversation) => {
-        const otherId = conv.participants.find(id => id !== currentUser?.uid);
-        if (otherId) startCall(otherId, false);
-    };
+const handleAudioCall = (conv: Conversation) => {
+  const otherId = conv.participants.find(id => id !== currentUser?.uid);
+  if (otherId) startCall(otherId, false);
+};
+
+const startCallAfterPreview = (withVideo: boolean, withAudio: boolean) => {
+  if (pendingCall) {
+    const isVideo = pendingCall.isVideo && withVideo;
+    startCall(pendingCall.receiverId, isVideo);
+  }
+  setShowPreCall(false);
+  setPendingCall(null);
+};
+
+// precall modal preview 
+const [showPreCall, setShowPreCall] = useState(false);
+const [pendingCall, setPendingCall] = useState<{ receiverId: string; isVideo: boolean } | null>(null);
 
   return (
     <div className="flex h-full">
@@ -321,20 +321,34 @@ export default function MessagesPage() {
               ))}
               {messages.length === 0 && <div className="flex justify-center text-gray-400 text-sm">No messages yet. Say hello!</div>}
             </div>
-            <div className="p-4 bg-white border-t border-gray-100">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                  placeholder="Type a message..."
-                  className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-full text-sm focus:outline-none focus:border-blue-300"
-                />
-                <button onClick={handleSend} className="p-2.5 bg-blue-500 text-white rounded-full hover:bg-blue-600 shadow-md">
-                  <Send size={18} />
-                </button>
-              </div>
+           <div className="p-4 bg-white border-t border-gray-100">
+                <div className="flex items-end gap-2">
+                    <textarea
+                    value={messageInput}
+                    onChange={(e) => {
+                        setMessageInput(e.target.value);
+                        // Auto-resize
+                        e.target.style.height = 'auto';
+                        e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                    }}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend();
+                        }
+                    }}
+                    placeholder="Type a message..."
+                    rows={1}
+                    className="flex-1 px-4 py-2.5 bg-gray-100 rounded-2xl text-sm focus:outline-none resize-none overflow-y-auto"
+                    style={{ minHeight: '42px', maxHeight: '120px' }}
+                    />
+                    <button 
+                    onClick={handleSend} 
+                    className="p-2.5 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors flex-shrink-0"
+                    >
+                    <Send size={18} />
+                    </button>
+                </div>
             </div>
           </>
         ) : (
@@ -343,6 +357,15 @@ export default function MessagesPage() {
           </div>
         )}
       </div>
+
+ <PreCallModal
+        isOpen={showPreCall}
+        onClose={() => setShowPreCall(false)}
+        onStartCall={startCallAfterPreview}
+        isVideoCall={pendingCall?.isVideo || false}
+      />
+
     </div>
   );
 }
+

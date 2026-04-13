@@ -1,13 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { MessageCircle, Settings, LogOut, Menu, X } from 'lucide-react';
-import { auth } from '../config/firebase';
+import { auth, db } from '../config/firebase';
 import { signOut } from 'firebase/auth';
-import logo from '../assets/hzoom_logo.png';
+import { doc, getDoc } from 'firebase/firestore';
 
 export default function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userData, setUserData] = useState<any>(null);
   const navigate = useNavigate();
+
+  // Fetch user data from Firestore when auth state changes
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          setUserData(userDoc.data());
+        } else {
+          // Fallback: use auth user data
+          setUserData({
+            name: user.displayName || user.email?.split('@')[0],
+            email: user.email,
+          });
+        }
+      } else {
+        setUserData(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -21,11 +43,13 @@ export default function Sidebar() {
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-white border-r border-gray-100">
-        <div className="px-2 py-2">
-            <div className="flex items-center gap-2 text-4xl font-bold">
-                <span className="bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent drop-shadow-sm">hzoom</span>
-            </div>
+      <div className="px-2 py-2">
+        <div className="flex items-center gap-2 text-3xl font-bold">
+          <span className="bg-gradient-to-r from-gray-500 to-gray-700 bg-clip-text text-transparent drop-shadow-sm">
+            hzoom
+          </span>
         </div>
+      </div>
       <nav className="flex-1 px-4 py-6 space-y-1">
         {navItems.map((item) => (
           <NavLink
@@ -46,7 +70,20 @@ export default function Sidebar() {
         ))}
       </nav>
       <div className="p-4 border-t border-gray-100">
-        {/* User info – you can fetch from context later */}
+        {/* User info */}
+        {userData && (
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-sm font-medium shadow-sm">
+              {(userData.name?.[0] || userData.email?.[0] || 'U').toUpperCase()}
+            </div>
+            <div className="flex-1 truncate">
+              <p className="text-sm font-semibold text-gray-800 truncate">
+                {userData.name || userData.email?.split('@')[0]}
+              </p>
+              <p className="text-xs text-gray-500 truncate">{userData.email}</p>
+            </div>
+          </div>
+        )}
         <button
           onClick={handleLogout}
           className="w-full flex items-center justify-center gap-2 px-3 py-1.5 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"

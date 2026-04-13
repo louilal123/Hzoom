@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { CallProvider } from './contexts/CallContext';
+import { WebRTCProvider } from './contexts/WebRTCContext';
 import CallModal from './components/CallModal';
 import Login from './pages/Login';
 import SetPassword from './pages/SetPassword';
@@ -9,7 +9,7 @@ import SettingsPage from './pages/SettingsPage';
 
 function App() {
   return (
-    <CallProvider>
+     <WebRTCProvider>
       <Router>
         <Routes>
           <Route path="/" element={<Login />} />
@@ -22,7 +22,7 @@ function App() {
         </Routes>
       </Router>
       <CallModal />
-    </CallProvider>
+    </WebRTCProvider>
   );
 }
 

@@ -10,7 +10,6 @@ import {
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { useNavigate } from 'react-router-dom';
-import logo from '../assets/hzoom_logo.png';
 import { generateUsername } from '../utils/username';
 
 function Login() {
@@ -129,7 +128,11 @@ function Login() {
       <div className="w-full max-w-xs border-0 shadow-none ring-0 outline-none">
         <div className="bg-white-100">
           <div className="text-center mb-6">
-            <img src={logo} alt="HZOOM Logo" className="mx-auto h-50 w-auto" />
+           <div className=" text-4xl font-bold py-4 px-2">
+            <span className="bg-gradient-to-r from-gray-500 to-gray-700 bg-clip-text text-transparent drop-shadow-sm">
+              hzoom
+            </span>
+          </div>
             <p className="text-sm text-gray-500 mt-4">Sign in to continue</p>
           </div>
 
