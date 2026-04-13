@@ -1,6 +1,7 @@
 import { useEffect, useState, memo, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { auth, db } from '../config/firebase';
+
 import { collection, getDocs } from 'firebase/firestore';
 import {
   listenToConversations,
@@ -12,8 +13,10 @@ import {
 } from '../services/chatService';
 import type { Conversation, Message } from '../services/chatService';
 import { Search, Send, Video, Phone, MoreHorizontal, ChevronLeft } from 'lucide-react';
+import { useCall } from '../contexts/CallContext';
 
-// ✅ Memoized search input component to prevent focus loss
+
+//  Memoized search input component to prevent focus loss
 const SearchInput = memo(({ value, onChange }: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void }) => {
   // Keep a ref to the input to ensure it exists
   const inputRef = useRef<HTMLInputElement>(null);
@@ -22,6 +25,7 @@ const SearchInput = memo(({ value, onChange }: { value: string; onChange: (e: Re
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+  
 
   return (
     <div className="relative shadow-sm">
@@ -73,7 +77,7 @@ export default function MessagesPage() {
     return () => unsubscribe();
   }, [currentUser]);
 
-  // ✅ Fetch all users (except current) once on mount
+  //  Fetch all users (except current) once on mount
   useEffect(() => {
     if (!currentUser) return;
     const fetchAllUsers = async () => {
@@ -133,6 +137,7 @@ export default function MessagesPage() {
     alert(`Video call with ${contactNames[otherId!] || otherId} – coming soon!`);
   };
 
+
   const handleSelectConversation = (conv: Conversation) => {
     navigate(`/messages/${conv.id}`);
   };
@@ -156,7 +161,7 @@ export default function MessagesPage() {
     return name.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
-  // ✅ Filter all users (excluding those already in a conversation)
+  //  Filter all users (excluding those already in a conversation)
   const existingContactIds = new Set(conversations.flatMap(c => c.participants));
   const filteredAllUsers = allUsers.filter(user => {
     if (!searchTerm.trim()) return !existingContactIds.has(user.id);
@@ -164,11 +169,29 @@ export default function MessagesPage() {
     return !existingContactIds.has(user.id) && nameMatch;
   });
 
+    const { startCall } = useCall();
+       const handleVideoCall = (conv: Conversation) => {
+            console.log('🎥 Video button clicked');
+            const otherId = conv.participants.find(id => id !== currentUser?.uid);
+            console.log('📞 Other user ID:', otherId);
+            if (otherId) {
+                console.log('📞 Calling startCall...');
+                startCall(otherId, true);
+            } else {
+                console.log('❌ No other user found');
+            }
+            };
+
+        const handleAudioCall = (conv: Conversation) => {
+        const otherId = conv.participants.find(id => id !== currentUser?.uid);
+        if (otherId) startCall(otherId, false);
+    };
+
   return (
     <div className="flex h-full">
       {/* Conversation list + All users */}
       <div className="w-full md:w-80 bg-white border-r border-gray-100 flex flex-col">
-        <div className="p-4 border-b border-gray-100">
+        <div className="p-6 border-b border-gray-100">
           <SearchInput value={searchTerm} onChange={handleSearchChange} />
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -270,10 +293,10 @@ export default function MessagesPage() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => startVideoCall(selectedConv)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-full">
+                <button onClick={() => handleVideoCall(selectedConv)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-full">
                   <Video size={20} />
                 </button>
-                <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-full">
+                <button  onClick={() => handleAudioCall(selectedConv)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-full">
                   <Phone size={20} />
                 </button>
                 <button className="p-2 text-gray-400 hover:bg-gray-100 rounded-full">

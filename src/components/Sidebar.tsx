@@ -21,9 +21,11 @@ export default function Sidebar() {
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-white border-r border-gray-100">
-      <div className="flex justify-center py-8">
-        <img src={logo} alt="HZoom Logo" className="h-12 w-auto" />
-      </div>
+        <div className="px-2 py-2">
+            <div className="flex items-center gap-2 text-4xl font-bold">
+                <span className="bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent drop-shadow-sm">hzoom</span>
+            </div>
+        </div>
       <nav className="flex-1 px-4 py-6 space-y-1">
         {navItems.map((item) => (
           <NavLink
