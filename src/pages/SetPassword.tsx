@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { EmailAuthProvider, linkWithCredential, onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../config/firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { generateUsername } from '../utils/username';
 
 function SetPassword() {
   const navigate = useNavigate();
@@ -56,21 +57,21 @@ function SetPassword() {
         console.log('Password linked successfully');
 
         const userRef = doc(db, 'users', currentUser.uid);
-        await setDoc(
-        userRef,
-        {
-            email,
-            name: displayName || '',
-            photoURL: photoURL || '',
-            createdAt: new Date().toISOString(),
-            lastLogin: new Date().toISOString(),
-            role: 'user',
-            authProvider: 'google',
-        },
-        { merge: true }
-        );
+        const base = displayName || email;
+        const username = await generateUsername(base);
+        await setDoc(userRef, {
+        email,
+        emailLower: email.toLowerCase(),
+        name: displayName || '',
+        nameLower: (displayName || '').toLowerCase(),
+        username,
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        role: 'user',
+        authProvider: 'google',
+        }, { merge: true });
 
-        navigate('/home');
+        navigate('/messages');
     } catch (err: any) {
         console.error('LINKING ERROR FULL OBJECT:', err);
         console.error('Error code:', err.code);

@@ -64,6 +64,19 @@ export const sendMessage = async (conversationId: string, text: string) => {
     const senderId = auth.currentUser?.uid;
     if (!senderId) throw new Error('Not authenticated');
 
+    // Ensure conversation document exists (create if not)
+    const convRef = doc(db, 'conversations', conversationId);
+    const convSnap = await getDoc(convRef);
+    if (!convSnap.exists()) {
+        // This should not happen if getOrCreateConversation was called, but just in case:
+        await setDoc(convRef, {
+            participants: [senderId, 'unknown'], // you might need the other user ID here
+            lastMessage: '',
+            lastMessageTime: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+        });
+    }
+
     const message = {
         text,
         senderId,
@@ -72,8 +85,7 @@ export const sendMessage = async (conversationId: string, text: string) => {
     };
     await addDoc(collection(db, 'conversations', conversationId, 'messages'), message);
 
-    // Update conversation's last message and time
-    await updateDoc(doc(db, 'conversations', conversationId), {
+    await updateDoc(convRef, {
         lastMessage: text,
         lastMessageTime: Timestamp.now(),
         updatedAt: Timestamp.now(),
@@ -126,37 +138,41 @@ export const getUser = async (userId: string) => {
     return docSnap.exists() ? docSnap.data() : null;
 };
 //search users to enable chatting with users usng email
-// searchUsers – by email or name (case‑insensitive)
 export const searchUsers = async (searchTerm: string) => {
     const currentUserId = auth.currentUser?.uid;
     if (!currentUserId || !searchTerm.trim()) return [];
 
     const lowerTerm = searchTerm.toLowerCase();
 
-    // Query by emailLower
+    // Three separate queries (Firestore can only do one 'where' per field)
     const emailQuery = query(
         collection(db, 'users'),
         where('emailLower', '>=', lowerTerm),
         where('emailLower', '<=', lowerTerm + '\uf8ff')
     );
-
-    // Query by nameLower (you may also need to add this field to user docs)
     const nameQuery = query(
         collection(db, 'users'),
         where('nameLower', '>=', lowerTerm),
         where('nameLower', '<=', lowerTerm + '\uf8ff')
     );
+    const usernameQuery = query(
+        collection(db, 'users'),
+        where('username', '>=', lowerTerm),
+        where('username', '<=', lowerTerm + '\uf8ff')
+    );
 
-    const [emailSnapshot, nameSnapshot] = await Promise.all([
+    const [emailSnap, nameSnap, usernameSnap] = await Promise.all([
         getDocs(emailQuery),
         getDocs(nameQuery),
+        getDocs(usernameQuery),
     ]);
 
-    const emailResults = emailSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    const nameResults = nameSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const emailResults = emailSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const nameResults = nameSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const usernameResults = usernameSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     // Combine and deduplicate by user id
-    const combined = [...emailResults, ...nameResults];
+    const combined = [...emailResults, ...nameResults, ...usernameResults];
     const unique = combined.filter((user, index, self) =>
         index === self.findIndex(u => u.id === user.id)
     );

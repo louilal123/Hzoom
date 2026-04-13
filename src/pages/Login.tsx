@@ -11,6 +11,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { useNavigate } from 'react-router-dom';
 import logo from '../assets/hzoom_logo.png';
+import { generateUsername } from '../utils/username';
 
 function Login() {
   const [email, setEmail] = useState<string>('');
@@ -20,22 +21,25 @@ function Login() {
 
   const navigate = useNavigate();
 
-  const saveUserToFirestore = async (user: any, authProvider: 'email' | 'google') => {
+  const saveUserToFirestore = async (user: any, authProvider: 'email' | 'google', isNewUser = true) => {
     const userRef = doc(db, 'users', user.uid);
-    await setDoc(
-      userRef,
-      {
-        email: user.email,
-        emailLower: user.email.toLowerCase(),
-        name: user.displayName || '',
-        nameLower: (user.displayName || '').toLowerCase(),
-        createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString(),
-        role: 'user',
-        authProvider,
-      },
-      { merge: true }
-    );
+    const data: any = {
+      email: user.email,
+      emailLower: user.email.toLowerCase(),
+      name: user.displayName || '',
+      nameLower: (user.displayName || '').toLowerCase(),
+      createdAt: new Date().toISOString(),
+      lastLogin: new Date().toISOString(),
+      role: 'user',
+      authProvider,
+    };
+
+    if (isNewUser) {
+      const base = user.displayName || user.email;
+      data.username = await generateUsername(base);
+    }
+
+    await setDoc(userRef, data, { merge: true });
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -59,7 +63,7 @@ function Login() {
       const userRef = doc(db, 'users', userCredential.user.uid);
       await setDoc(userRef, { lastLogin: new Date().toISOString() }, { merge: true });
 
-      navigate('/home');
+      navigate('/messages');
     } catch (err: any) {
       console.error(err);
       switch (err.code) {
@@ -111,7 +115,7 @@ function Login() {
 
         console.log("5. Existing user – saving to Firestore and redirecting to home");
         await saveUserToFirestore(user, 'google');
-        navigate('/home');
+        navigate('/messages');
       } catch (err: any) {
         console.error("Google sign-in error details:", err);
         setError(`Google sign‑in failed: ${err.message || 'Please try again.'}`);
@@ -121,7 +125,7 @@ function Login() {
     };
 
   return (
-    <div className="min-h-screen flex items-center justify-center border-0 shadow-none ring-0 outline-none">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center border-0 shadow-none ring-0 outline-none">
       <div className="w-full max-w-xs border-0 shadow-none ring-0 outline-none">
         <div className="bg-white-100">
           <div className="text-center mb-6">
@@ -156,7 +160,7 @@ function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              className="w-full cursor-pointer py-3 px-4 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
               {loading ? 'Please wait...' : 'Sign In'}
             </button>
@@ -174,7 +178,7 @@ function Login() {
           <button
             onClick={handleGoogleSignIn}
             disabled={loading}
-            className="w-full py-3 px-4 bg-white border border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-sm shadow-sm"
+            className="w-full cursor-pointer py-3 px-4 bg-white border border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-sm shadow-sm"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
