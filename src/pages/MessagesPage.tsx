@@ -174,19 +174,6 @@ const handleAudioCall = (conv: Conversation) => {
   if (otherId) startCall(otherId, false);
 };
 
-const startCallAfterPreview = (withVideo: boolean, withAudio: boolean) => {
-  if (pendingCall) {
-    const isVideo = pendingCall.isVideo && withVideo;
-    startCall(pendingCall.receiverId, isVideo);
-  }
-  setShowPreCall(false);
-  setPendingCall(null);
-};
-
-// precall modal preview 
-const [showPreCall, setShowPreCall] = useState(false);
-const [pendingCall, setPendingCall] = useState<{ receiverId: string; isVideo: boolean } | null>(null);
-
   return (
     <div className="flex h-full">
       {/* Conversation list + All users */}
@@ -357,13 +344,6 @@ const [pendingCall, setPendingCall] = useState<{ receiverId: string; isVideo: bo
           </div>
         )}
       </div>
-
- <PreCallModal
-        isOpen={showPreCall}
-        onClose={() => setShowPreCall(false)}
-        onStartCall={startCallAfterPreview}
-        isVideoCall={pendingCall?.isVideo || false}
-      />
 
     </div>
   );

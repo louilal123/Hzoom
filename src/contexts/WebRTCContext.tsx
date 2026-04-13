@@ -1,7 +1,10 @@
+// src/contexts/WebRTCContext.tsx
 import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { db, auth } from '../config/firebase';
 import { collection, doc, setDoc, onSnapshot, updateDoc, query, where, getDoc, arrayUnion } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
+
+type CallStatus = 'idle' | 'calling' | 'incoming' | 'connected' | 'ended';
 
 interface CallData {
   callId: string;
@@ -16,51 +19,54 @@ interface CallData {
 }
 
 interface WebRTCContextType {
-  startCall: (receiverId: string, isVideo: boolean) => Promise<void>;
-  endCall: () => void;
-  acceptCall: (callId: string, isVideo: boolean) => Promise<void>;
-  rejectCall: (callId: string) => Promise<void>;
-  isInCall: boolean;
-  incomingCall: { callId: string; callerId: string; isVideo: boolean } | null;
+  callStatus: CallStatus;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  incomingCallInfo: { callId: string; callerId: string; isVideo: boolean } | null;
+  startCall: (receiverId: string, isVideo: boolean) => Promise<void>;
+  acceptCall: (callId: string, isVideo: boolean) => Promise<void>;
+  rejectCall: (callId: string) => Promise<void>;
+  cancelCall: () => void;
+  endCall: () => void;
 }
 
 const WebRTCContext = createContext<WebRTCContextType | undefined>(undefined);
 
 export const useWebRTC = () => {
-  const context = useContext(WebRTCContext);
-  if (!context) throw new Error('useWebRTC must be used within WebRTCProvider');
-  return context;
+  const ctx = useContext(WebRTCContext);
+  if (!ctx) throw new Error('useWebRTC must be used within WebRTCProvider');
+  return ctx;
 };
 
 export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(null);
+  const [callStatus, setCallStatus] = useState<CallStatus>('idle');
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-  const [isInCall, setIsInCall] = useState(false);
-  const [incomingCall, setIncomingCall] = useState<{ callId: string; callerId: string; isVideo: boolean } | null>(null);
+  const [incomingCallInfo, setIncomingCallInfo] = useState<{ callId: string; callerId: string; isVideo: boolean } | null>(null);
+  
+  const peerConnection = useRef<RTCPeerConnection | null>(null);
   const currentCallId = useRef<string | null>(null);
   const unsubscribeSignal = useRef<(() => void) | null>(null);
 
-  // Listen for incoming calls
+  // Listen for incoming calls (pending, callee = current user)
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (!user) return;
-      const callsQuery = query(
+      const q = query(
         collection(db, 'calls'),
         where('calleeId', '==', user.uid),
         where('status', '==', 'pending')
       );
-      const unsubscribe = onSnapshot(callsQuery, (snapshot) => {
+      const unsubscribe = onSnapshot(q, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
             const data = change.doc.data() as CallData;
-            setIncomingCall({
+            setIncomingCallInfo({
               callId: change.doc.id,
               callerId: data.callerId,
               isVideo: data.isVideo,
             });
+            setCallStatus('incoming');
           }
         });
       });
@@ -88,23 +94,29 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const startCall = async (receiverId: string, isVideo: boolean) => {
+    // 1. Immediately switch UI to "calling" state
+    setCallStatus('calling');
+    
     try {
+      // 2. Get local media stream
       const stream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
       setLocalStream(stream);
 
+      // 3. Create RTCPeerConnection
       const pc = createPeerConnection((remote) => {
         setRemoteStream(remote);
-        setIsInCall(true);
+        setCallStatus('connected');
       });
-      setPeerConnection(pc);
+      peerConnection.current = pc;
 
-      stream.getTracks().forEach((track) => {
-        pc.addTrack(track, stream);
-      });
+      // 4. Add local tracks
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
+      // 5. Create offer
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
+      // 6. Store call in Firestore
       const callId = `${Date.now()}_${Math.random().toString(36)}`;
       currentCallId.current = callId;
       const callData: CallData = {
@@ -119,14 +131,13 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       };
       await setDoc(doc(db, 'calls', callId), callData);
 
+      // 7. Listen for answer and ICE candidates
       unsubscribeSignal.current = onSnapshot(doc(db, 'calls', callId), (snap) => {
         const data = snap.data() as CallData;
-        // Only set remote description if not already set
         if (data?.answer && pc.remoteDescription === null) {
           pc.setRemoteDescription(new RTCSessionDescription(data.answer)).catch(console.error);
         }
-        // Only add ICE candidates if remote description exists
-        if (data?.iceCandidates && data.iceCandidates.length > 0 && pc.remoteDescription) {
+        if (data?.iceCandidates && pc.remoteDescription) {
           data.iceCandidates.forEach(candidate => {
             pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(console.error);
           });
@@ -137,6 +148,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
     } catch (err) {
       console.error('startCall error:', err);
+      cancelCall();
     }
   };
 
@@ -149,16 +161,14 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       const stream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
       setLocalStream(stream);
+      setCallStatus('connected');
 
       const pc = createPeerConnection((remote) => {
         setRemoteStream(remote);
-        setIsInCall(true);
       });
-      setPeerConnection(pc);
+      peerConnection.current = pc;
 
-      stream.getTracks().forEach((track) => {
-        pc.addTrack(track, stream);
-      });
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
       await pc.setRemoteDescription(new RTCSessionDescription(callData.offer!));
       const answer = await pc.createAnswer();
@@ -166,11 +176,9 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       await updateDoc(callRef, { answer: answer, status: 'active' });
 
       currentCallId.current = callId;
-
       unsubscribeSignal.current = onSnapshot(callRef, (snap) => {
         const data = snap.data() as CallData;
-        // Only add ICE candidates if remote description exists
-        if (data?.iceCandidates && data.iceCandidates.length > 0 && pc.remoteDescription) {
+        if (data?.iceCandidates && pc.remoteDescription) {
           data.iceCandidates.forEach(candidate => {
             pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(console.error);
           });
@@ -179,25 +187,33 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           endCall();
         }
       });
-
-      setIncomingCall(null);
+      setIncomingCallInfo(null);
     } catch (err) {
       console.error('acceptCall error:', err);
+      endCall();
     }
   };
 
   const rejectCall = async (callId: string) => {
     await updateDoc(doc(db, 'calls', callId), { status: 'ended' });
-    setIncomingCall(null);
+    setIncomingCallInfo(null);
+    setCallStatus('idle');
+  };
+
+  const cancelCall = () => {
+    if (currentCallId.current) {
+      updateDoc(doc(db, 'calls', currentCallId.current), { status: 'ended' }).catch(console.error);
+    }
+    endCall();
   };
 
   const endCall = () => {
-    if (peerConnection) peerConnection.close();
+    if (peerConnection.current) peerConnection.current.close();
     if (localStream) localStream.getTracks().forEach(track => track.stop());
     setLocalStream(null);
     setRemoteStream(null);
-    setIsInCall(false);
-    setPeerConnection(null);
+    setCallStatus('idle');
+    peerConnection.current = null;
     if (currentCallId.current) {
       updateDoc(doc(db, 'calls', currentCallId.current), { status: 'ended' }).catch(console.error);
     }
@@ -206,18 +222,17 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   return (
-    <WebRTCContext.Provider
-      value={{
-        startCall,
-        endCall,
-        acceptCall,
-        rejectCall,
-        isInCall,
-        incomingCall,
-        localStream,
-        remoteStream,
-      }}
-    >
+    <WebRTCContext.Provider value={{
+      callStatus,
+      localStream,
+      remoteStream,
+      incomingCallInfo,
+      startCall,
+      acceptCall,
+      rejectCall,
+      cancelCall,
+      endCall,
+    }}>
       {children}
     </WebRTCContext.Provider>
   );
