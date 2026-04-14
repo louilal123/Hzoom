@@ -14,11 +14,12 @@ function App() {
         <Routes>
           <Route path="/" element={<Login />} />
           <Route path="/set-password" element={<SetPassword />} />
-            <Route path="/call" element={<CallPage />} />
+         
             <Route element={<Layout />}>
-        
+          
             <Route path="/messages" element={<MessagesPage />} />
             <Route path="/messages/:conversationId" element={<MessagesPage />} />
+             <Route path="/call" element={<CallPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             
           </Route>
