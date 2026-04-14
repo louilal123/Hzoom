@@ -7,8 +7,8 @@ import { Mic, Video, PhoneOff } from 'lucide-react';
 
 export default function CallPage() {
   const [searchParams] = useSearchParams();
-  const receiverId = searchParams.get('receiverId');   // for caller
-  const callIdParam = searchParams.get('callId');      // for callee (answering)
+  const receiverId = searchParams.get('receiverId');
+  const callIdParam = searchParams.get('callId');
   const isVideo = searchParams.get('isVideo') === 'true';
   const currentUser = auth.currentUser;
 
@@ -22,7 +22,6 @@ export default function CallPage() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
-  // Helper to create RTCPeerConnection with STUN servers
   const createPeerConnection = (onRemoteStream: (stream: MediaStream) => void) => {
     const pc = new RTCPeerConnection({
       iceServers: [
@@ -37,20 +36,23 @@ export default function CallPage() {
       }
     };
     pc.ontrack = (event) => {
+      console.log('📹 ontrack: received', event.track.kind, 'track');
       onRemoteStream(event.streams[0]);
+    };
+    pc.onconnectionstatechange = () => {
+      console.log('Connection state:', pc.connectionState);
     };
     return pc;
   };
 
-  // ===== CALLER FLOW (no callIdParam) =====
   useEffect(() => {
     if (!currentUser) {
       window.close();
       return;
     }
 
-    // If we are the caller (receiverId present and no callId)
     if (receiverId && !callIdParam) {
+      // Caller
       const initCall = async () => {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
@@ -82,7 +84,6 @@ export default function CallPage() {
             createdAt: new Date(),
           });
 
-          // Listen for answer
           unsubscribeSignal.current = onSnapshot(callRef, (snap) => {
             const data = snap.data();
             if (data?.answer && pc.remoteDescription === null) {
@@ -101,15 +102,15 @@ export default function CallPage() {
         }
       };
       initCall();
-    }
-    // ===== CALLEE FLOW (callIdParam present) =====
-    else if (callIdParam) {
+    } else if (callIdParam) {
+      // Callee
       const answerCall = async () => {
         try {
           const callRef = doc(db, 'calls', callIdParam);
           const callSnap = await getDoc(callRef);
           const callData = callSnap.data();
-          if (!callData || callData.status !== 'pending') {
+          // Allow 'pending' or 'ringing' status
+          if (!callData || (callData.status !== 'pending' && callData.status !== 'ringing')) {
             window.close();
             return;
           }
@@ -133,7 +134,6 @@ export default function CallPage() {
 
           setCallId(callIdParam);
 
-          // Listen for ICE candidates from caller
           unsubscribeSignal.current = onSnapshot(callRef, (snap) => {
             const data = snap.data();
             if (data?.iceCandidates && pc.remoteDescription) {
@@ -150,14 +150,13 @@ export default function CallPage() {
       };
       answerCall();
     } else {
-      // Invalid parameters
       window.close();
     }
 
     return () => {
       if (unsubscribeSignal.current) unsubscribeSignal.current();
     };
-  }, []); // run once on mount
+  }, []);
 
   const endCall = () => {
     if (peerConnection.current) peerConnection.current.close();
@@ -166,7 +165,7 @@ export default function CallPage() {
       updateDoc(doc(db, 'calls', callId), { status: 'ended' }).catch(console.error);
     }
     if (unsubscribeSignal.current) unsubscribeSignal.current();
-    window.close(); // close the popup
+    window.close();
   };
 
   const toggleAudio = () => {
@@ -178,7 +177,20 @@ export default function CallPage() {
     if (videoTrack) videoTrack.enabled = !videoTrack.enabled;
   };
 
-  // Outgoing calling UI (waiting for answer)
+  // Attach local stream to PIP element
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream]);
+
+  // Attach remote stream to main element
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
+
   if (callStatus === 'calling') {
     return (
       <div className="fixed inset-0 bg-black flex flex-col items-center justify-center">
@@ -193,11 +205,15 @@ export default function CallPage() {
     );
   }
 
-  // Connected call UI (full screen remote + local PIP)
-  if (callStatus === 'connected' && remoteStream) {
+  if (callStatus === 'connected') {
     return (
       <div className="fixed inset-0 bg-black flex flex-col">
         <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
+        {!remoteStream && (
+          <div className="absolute inset-0 flex items-center justify-center text-white text-xl bg-black/70">
+            Waiting for other person's video...
+          </div>
+        )}
         <div className="absolute bottom-6 right-6 w-36 h-48 bg-black rounded-xl overflow-hidden shadow-xl border-2 border-white/30 z-10">
           <video ref={localVideoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
         </div>

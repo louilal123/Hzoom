@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { MessageCircle, Settings, LogOut, Menu, X } from 'lucide-react';
+import { MessageCircle, Settings, LogOut, Menu, X, Users } from 'lucide-react';
 import { auth, db } from '../config/firebase';
 import { signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -38,6 +38,7 @@ export default function Sidebar() {
 
   const navItems = [
     { to: '/messages', label: 'Messages', icon: MessageCircle },
+     { to: '/group-chats', label: 'Groups', icon: Users },
     { to: '/settings', label: 'Settings', icon: Settings },
   ];
 
@@ -86,7 +87,7 @@ export default function Sidebar() {
         )}
         <button
           onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2 px-3 py-1.5 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+          className="w-full flex items-center justify-center gap-2 px-3 py-1.5 cursor-pointer  text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
         >
           <LogOut size={16} /> Sign Out
         </button>

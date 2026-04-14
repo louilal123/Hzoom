@@ -207,7 +207,7 @@ const handleAudioCall = (conv: Conversation) => {
                 <button
                 key={conv.id}
                 onClick={() => handleSelectConversation(conv)}
-                className={`w-full flex items-center gap-3 px-4 py-3 transition-all ${
+                className={`w-full flex items-center gap-3 px-4 py-3 transition-all cursor-pointer ${
                     selectedConv?.id === conv.id
                     ? 'bg-blue-50 border-l-4 border-blue-500'
                     : 'hover:bg-gray-50 border-l-4 border-transparent'
@@ -346,7 +346,7 @@ const handleAudioCall = (conv: Conversation) => {
                     />
                     <button 
                     onClick={handleSend} 
-                    className="p-2.5 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors flex-shrink-0"
+                    className="p-2.5 bg-blue-500 text-white rounded-full cursor-pointer  hover:bg-blue-600 transition-colors flex-shrink-0"
                     >
                     <Send size={18} />
                     </button>

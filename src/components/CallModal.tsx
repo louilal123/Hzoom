@@ -1,14 +1,31 @@
 // src/components/CallModal.tsx
+import { useEffect } from 'react';
 import { useWebRTC } from '../contexts/WebRTCContext';
 import { X, Phone } from 'lucide-react';
-import { updateDoc, doc } from 'firebase/firestore';
+import { updateDoc, doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
+
 export default function CallModal() {
   const { incomingCallInfo, clearIncomingCall } = useWebRTC();
 
-  const handleAccept = () => {
+  // Auto-remove popup if the call status becomes 'ended' (e.g., caller cancelled)
+  useEffect(() => {
+    if (!incomingCallInfo) return;
+    const callRef = doc(db, 'calls', incomingCallInfo.callId);
+    const unsubscribe = onSnapshot(callRef, (snap) => {
+      const data = snap.data();
+      if (data?.status === 'ended') {
+        clearIncomingCall();
+      }
+    });
+    return () => unsubscribe();
+  }, [incomingCallInfo, clearIncomingCall]);
+
+  const handleAccept = async () => {
     if (incomingCallInfo) {
       const { callId, callerId, isVideo } = incomingCallInfo;
+      // Change status to 'ringing' so main window stops showing the popup
+      await updateDoc(doc(db, 'calls', callId), { status: 'ringing' });
       window.open(
         `/call?callId=${callId}&receiverId=${callerId}&isVideo=${isVideo}`,
         '_blank',
