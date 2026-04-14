@@ -22,7 +22,7 @@ interface WebRTCContextType {
   callStatus: CallStatus;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
-  incomingCallInfo: { callId: string; callerId: string; isVideo: boolean } | null;
+  incomingCallInfo: { callId: string; callerId: string; isVideo: boolean; callerName?: string } | null;
   startCall: (receiverId: string, isVideo: boolean) => Promise<void>;
   acceptCall: (callId: string, isVideo: boolean) => Promise<void>;
   rejectCall: (callId: string) => Promise<void>;
@@ -42,33 +42,46 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [callStatus, setCallStatus] = useState<CallStatus>('idle');
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-  const [incomingCallInfo, setIncomingCallInfo] = useState<{ callId: string; callerId: string; isVideo: boolean } | null>(null);
+  const [incomingCallInfo, setIncomingCallInfo] = useState<{ callId: string; callerId: string; isVideo: boolean; callerName?: string } | null>(null);
   
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const currentCallId = useRef<string | null>(null);
   const unsubscribeSignal = useRef<(() => void) | null>(null);
+  const pendingIceCandidates = useRef<RTCIceCandidateInit[]>([]);
 
-  // Listen for incoming calls (pending, callee = current user)
+  // Helper to fetch user name
+  const getUserName = async (userId: string): Promise<string> => {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      return userDoc.exists() ? (userDoc.data().name || userDoc.data().email || userId) : userId;
+    } catch {
+      return userId;
+    }
+  };
+
+  // Listen for incoming calls
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (!user) return;
       const q = query(
         collection(db, 'calls'),
         where('calleeId', '==', user.uid),
         where('status', '==', 'pending')
       );
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
+      const unsubscribe = onSnapshot(q, async (snapshot) => {
+        for (const change of snapshot.docChanges()) {
           if (change.type === 'added') {
             const data = change.doc.data() as CallData;
+            const callerName = await getUserName(data.callerId);
             setIncomingCallInfo({
               callId: change.doc.id,
               callerId: data.callerId,
               isVideo: data.isVideo,
+              callerName,
             });
             setCallStatus('incoming');
           }
-        });
+        }
       });
       return () => unsubscribe();
     });
@@ -77,46 +90,52 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const createPeerConnection = (onRemoteStream: (stream: MediaStream) => void) => {
     const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+      ],
     });
     pc.onicecandidate = (event) => {
       if (event.candidate && currentCallId.current) {
         const callRef = doc(db, 'calls', currentCallId.current);
         updateDoc(callRef, {
           iceCandidates: arrayUnion(event.candidate.toJSON()),
-        });
+        }).catch(console.error);
       }
     };
     pc.ontrack = (event) => {
+      console.log('📞 ontrack fired, remote stream received');
       onRemoteStream(event.streams[0]);
+    };
+    pc.onconnectionstatechange = () => {
+      console.log('Connection state:', pc.connectionState);
+    };
+    pc.oniceconnectionstatechange = () => {
+      console.log('ICE state:', pc.iceConnectionState);
     };
     return pc;
   };
 
   const startCall = async (receiverId: string, isVideo: boolean) => {
-    // 1. Immediately switch UI to "calling" state
     setCallStatus('calling');
-    
     try {
-      // 2. Get local media stream
       const stream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
       setLocalStream(stream);
 
-      // 3. Create RTCPeerConnection
       const pc = createPeerConnection((remote) => {
+        console.log('Remote stream received in startCall');
         setRemoteStream(remote);
         setCallStatus('connected');
       });
       peerConnection.current = pc;
 
-      // 4. Add local tracks
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      stream.getTracks().forEach(track => {
+        pc.addTrack(track, stream);
+      });
 
-      // 5. Create offer
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      // 6. Store call in Firestore
       const callId = `${Date.now()}_${Math.random().toString(36)}`;
       currentCallId.current = callId;
       const callData: CallData = {
@@ -130,14 +149,16 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         createdAt: new Date(),
       };
       await setDoc(doc(db, 'calls', callId), callData);
+      console.log('Call document created, waiting for answer');
 
-      // 7. Listen for answer and ICE candidates
       unsubscribeSignal.current = onSnapshot(doc(db, 'calls', callId), (snap) => {
         const data = snap.data() as CallData;
         if (data?.answer && pc.remoteDescription === null) {
+          console.log('Received answer, setting remote description');
           pc.setRemoteDescription(new RTCSessionDescription(data.answer)).catch(console.error);
         }
-        if (data?.iceCandidates && pc.remoteDescription) {
+        if (data?.iceCandidates && data.iceCandidates.length > 0 && pc.remoteDescription) {
+          console.log('Adding remote ICE candidates:', data.iceCandidates.length);
           data.iceCandidates.forEach(candidate => {
             pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(console.error);
           });
@@ -164,21 +185,27 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setCallStatus('connected');
 
       const pc = createPeerConnection((remote) => {
+        console.log('Remote stream received in acceptCall');
         setRemoteStream(remote);
       });
       peerConnection.current = pc;
 
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
+      console.log('Setting remote description (offer)');
       await pc.setRemoteDescription(new RTCSessionDescription(callData.offer!));
       const answer = await pc.createAnswer();
+      console.log('Setting local description (answer)');
       await pc.setLocalDescription(answer);
       await updateDoc(callRef, { answer: answer, status: 'active' });
 
       currentCallId.current = callId;
+
+      // Listen for ICE candidates from caller
       unsubscribeSignal.current = onSnapshot(callRef, (snap) => {
         const data = snap.data() as CallData;
-        if (data?.iceCandidates && pc.remoteDescription) {
+        if (data?.iceCandidates && data.iceCandidates.length > 0 && pc.remoteDescription) {
+          console.log('Adding remote ICE candidates (after answer):', data.iceCandidates.length);
           data.iceCandidates.forEach(candidate => {
             pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(console.error);
           });
@@ -187,6 +214,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           endCall();
         }
       });
+
       setIncomingCallInfo(null);
     } catch (err) {
       console.error('acceptCall error:', err);
