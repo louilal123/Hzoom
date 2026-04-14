@@ -6,7 +6,7 @@ import { updateDoc, doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 export default function CallModal() {
-  const { incomingCallInfo, clearIncomingCall } = useWebRTC();
+  const { incomingCallInfo, clearIncomingCall, markCallAsAccepted } = useWebRTC();
 
   // Auto-remove popup if the call status becomes 'ended' (e.g., caller cancelled)
   useEffect(() => {
@@ -24,8 +24,10 @@ export default function CallModal() {
   const handleAccept = async () => {
     if (incomingCallInfo) {
       const { callId, callerId, isVideo } = incomingCallInfo;
+      // Mark as accepted locally to prevent reappearance
+      markCallAsAccepted(callId);
       // Change status to 'ringing' so main window stops showing the popup
-      await updateDoc(doc(db, 'calls', callId), { status: 'ringing' });
+      await updateDoc(doc(db, 'calls', callId), { status: 'ringing' }).catch(console.error);
       window.open(
         `/call?callId=${callId}&receiverId=${callerId}&isVideo=${isVideo}`,
         '_blank',
