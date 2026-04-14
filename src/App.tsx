@@ -6,7 +6,7 @@ import SetPassword from './pages/SetPassword';
 import Layout from './components/Layout';
 import MessagesPage from './pages/MessagesPage';
 import SettingsPage from './pages/SettingsPage';
-
+import CallPage from './pages/CallPage';
 function App() {
   return (
      <WebRTCProvider>
@@ -14,10 +14,13 @@ function App() {
         <Routes>
           <Route path="/" element={<Login />} />
           <Route path="/set-password" element={<SetPassword />} />
-          <Route element={<Layout />}>
+            <Route path="/call" element={<CallPage />} />
+            <Route element={<Layout />}>
+        
             <Route path="/messages" element={<MessagesPage />} />
             <Route path="/messages/:conversationId" element={<MessagesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            
           </Route>
         </Routes>
       </Router>
