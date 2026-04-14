@@ -8,7 +8,7 @@ import { generateUsername } from '../utils/username';
 function SetPassword() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { uid, email, displayName, photoURL } = location.state || {};
+  const { uid, email, displayName } = location.state || {};
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');

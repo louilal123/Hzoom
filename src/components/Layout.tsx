@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { auth } from '../config/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import Sidebar from './Sidebar';
@@ -7,7 +7,6 @@ import Sidebar from './Sidebar';
 export default function Layout() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const location = useLocation();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -31,7 +30,7 @@ export default function Layout() {
     <div className="min-h-screen bg-gray-50 font-sans">
       <Sidebar />
       <main className="md:ml-64 h-screen">
-        <Outlet />  {/* This renders either MessagesPage or SettingsPage */}
+        <Outlet />  {/*  renders either MessagesPage or SettingsPage */}
       </main>
     </div>
   );

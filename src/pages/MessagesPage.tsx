@@ -1,19 +1,16 @@
 import { useEffect, useState, memo, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { auth, db } from '../config/firebase';
-import PreCallModal from '../components/PreCallModal';
 import { collection, getDocs } from 'firebase/firestore';
 import {
   listenToConversations,
   listenToMessages,
   sendMessage,
   getUser,
-  searchUsers,
   getOrCreateConversation,
 } from '../services/chatService';
 import type { Conversation, Message } from '../services/chatService';
 import { Search, Send, Video, Phone, MoreHorizontal, ChevronLeft } from 'lucide-react';
-import { useWebRTC } from '../contexts/WebRTCContext';
 
 
 //  Memoized search input component to prevent focus loss
@@ -162,16 +159,34 @@ export default function MessagesPage() {
     return !existingContactIds.has(user.id) && nameMatch;
   });
 
-//    video using webrtc 
-const { startCall } = useWebRTC();
 const handleVideoCall = (conv: Conversation) => {
   const otherId = conv.participants.find(id => id !== currentUser?.uid);
-  if (otherId) startCall(otherId, true);
+  if (otherId) {
+    const width = 800;
+    const height = 600;
+    const left = (window.screen.width / 2) - (width / 2);
+    const top = (window.screen.height / 2) - (height / 2);
+    window.open(
+      `/call?receiverId=${otherId}&isVideo=true`,
+      '_blank',
+      `width=${width},height=${height},left=${left},top=${top},popup=1`
+    );
+  }
 };
 
 const handleAudioCall = (conv: Conversation) => {
   const otherId = conv.participants.find(id => id !== currentUser?.uid);
-  if (otherId) startCall(otherId, false);
+  if (otherId) {
+    const width = 800;
+    const height = 600;
+    const left = (window.screen.width / 2) - (width / 2);
+    const top = (window.screen.height / 2) - (height / 2);
+    window.open(
+      `/call?receiverId=${otherId}&isVideo=false`,
+      '_blank',
+      `width=${width},height=${height},left=${left},top=${top},popup=1`
+    );
+  }
 };
 
   return (
