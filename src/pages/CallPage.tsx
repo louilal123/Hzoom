@@ -109,7 +109,6 @@ export default function CallPage() {
           const callRef = doc(db, 'calls', callIdParam);
           const callSnap = await getDoc(callRef);
           const callData = callSnap.data();
-          // Allow 'pending' or 'ringing' status
           if (!callData || (callData.status !== 'pending' && callData.status !== 'ringing')) {
             window.close();
             return;
@@ -177,16 +176,20 @@ export default function CallPage() {
     if (videoTrack) videoTrack.enabled = !videoTrack.enabled;
   };
 
-  // Attach local stream to PIP element
+  // Attach local stream to PIP element (runs when localStream changes)
   useEffect(() => {
     if (localVideoRef.current && localStream) {
+      console.log('Attaching local stream to PIP, tracks:', localStream.getTracks().length);
       localVideoRef.current.srcObject = localStream;
+    } else {
+      console.log('Local stream or ref missing', { localStream: !!localStream, localVideoRef: !!localVideoRef.current });
     }
   }, [localStream]);
 
   // Attach remote stream to main element
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
+      console.log('Attaching remote stream to main');
       remoteVideoRef.current.srcObject = remoteStream;
     }
   }, [remoteStream]);
@@ -208,15 +211,24 @@ export default function CallPage() {
   if (callStatus === 'connected') {
     return (
       <div className="fixed inset-0 bg-black flex flex-col">
+        {/* Remote video (full screen) */}
         <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
         {!remoteStream && (
           <div className="absolute inset-0 flex items-center justify-center text-white text-xl bg-black/70">
             Waiting for other person's video...
           </div>
         )}
+        {/* Local video (PIP) */}
         <div className="absolute bottom-6 right-6 w-36 h-48 bg-black rounded-xl overflow-hidden shadow-xl border-2 border-white/30 z-10">
           <video ref={localVideoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+          {/* If local stream is missing, show a placeholder */}
+          {!localStream && (
+            <div className="absolute inset-0 flex items-center justify-center text-white text-xs bg-black/50">
+              No camera
+            </div>
+          )}
         </div>
+        {/* Controls */}
         <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-6 z-20">
           <button onClick={toggleAudio} className="p-4 rounded-full bg-gray-800/80 hover:bg-gray-700 text-white backdrop-blur-sm">
             <Mic size={24} />
