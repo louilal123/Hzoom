@@ -57,7 +57,6 @@ export default function CallPage() {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ video: isVideo, audio: true });
           setLocalStream(stream);
-          if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
           const pc = createPeerConnection((remote) => {
             setRemoteStream(remote);
@@ -116,7 +115,6 @@ export default function CallPage() {
 
           const stream = await navigator.mediaDevices.getUserMedia({ video: callData.isVideo, audio: true });
           setLocalStream(stream);
-          if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
           const pc = createPeerConnection((remote) => {
             setRemoteStream(remote);
@@ -176,23 +174,36 @@ export default function CallPage() {
     if (videoTrack) videoTrack.enabled = !videoTrack.enabled;
   };
 
-  // Attach local stream to PIP element (runs when localStream changes)
+  // Attach local stream to the local video element (works for both calling and connected states)
   useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      console.log('Attaching local stream to PIP, tracks:', localStream.getTracks().length);
-      localVideoRef.current.srcObject = localStream;
-    } else {
-      console.log('Local stream or ref missing', { localStream: !!localStream, localVideoRef: !!localVideoRef.current });
+    const videoElement = localVideoRef.current;
+    if (videoElement && localStream) {
+      console.log('Attaching local stream to video element');
+      videoElement.srcObject = localStream;
+      videoElement.onloadedmetadata = () => {
+        videoElement.play().catch(e => console.warn('Play failed:', e));
+      };
     }
   }, [localStream]);
 
-  // Attach remote stream to main element
+  // Attach remote stream to the remote video element
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      console.log('Attaching remote stream to main');
-      remoteVideoRef.current.srcObject = remoteStream;
+    const videoElement = remoteVideoRef.current;
+    if (videoElement && remoteStream) {
+      console.log('Attaching remote stream to remote video element');
+      videoElement.srcObject = remoteStream;
+      videoElement.onloadedmetadata = () => {
+        videoElement.play().catch(e => console.warn('Play failed:', e));
+      };
     }
   }, [remoteStream]);
+
+  // In case the video element is recreated (conditional rendering), re-attach
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localVideoRef.current, localStream]);
 
   if (callStatus === 'calling') {
     return (
@@ -211,24 +222,15 @@ export default function CallPage() {
   if (callStatus === 'connected') {
     return (
       <div className="fixed inset-0 bg-black flex flex-col">
-        {/* Remote video (full screen) */}
         <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
         {!remoteStream && (
           <div className="absolute inset-0 flex items-center justify-center text-white text-xl bg-black/70">
             Waiting for other person's video...
           </div>
         )}
-        {/* Local video (PIP) */}
         <div className="absolute bottom-6 right-6 w-36 h-48 bg-black rounded-xl overflow-hidden shadow-xl border-2 border-white/30 z-10">
           <video ref={localVideoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
-          {/* If local stream is missing, show a placeholder */}
-          {!localStream && (
-            <div className="absolute inset-0 flex items-center justify-center text-white text-xs bg-black/50">
-              No camera
-            </div>
-          )}
         </div>
-        {/* Controls */}
         <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-6 z-20">
           <button onClick={toggleAudio} className="p-4 rounded-full bg-gray-800/80 hover:bg-gray-700 text-white backdrop-blur-sm">
             <Mic size={24} />
