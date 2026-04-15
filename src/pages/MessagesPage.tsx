@@ -401,12 +401,12 @@ export default function MessagesPage() {
             </div>
 
             {/* Input area with action buttons */}
-            <div className="p-3 bg-white/80 backdrop-blur-sm border-t border-gray-200/50">
+            <div className="p-2 bg-white/80 backdrop-blur-sm border-t border-gray-200/50">
               <div className="flex items-end gap-2">
                 {/* Attachment button */}
                 <button 
                   onClick={handleAttachFile}
-                  className="p-2.5 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
+                  className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
                   title="Attach file (coming soon)"
                 >
                   <Paperclip size={20} />
@@ -415,7 +415,7 @@ export default function MessagesPage() {
                 {/* Image button */}
                 <button 
                   onClick={handleAttachFile}
-                  className="p-2.5 text-gray-500 hover:text-green-500 hover:bg-green-50 rounded-full transition-colors"
+                  className="p-2 text-gray-500 hover:text-green-500 hover:bg-green-50 rounded-full transition-colors"
                   title="Send image (coming soon)"
                 >
                   <Image size={20} />
@@ -444,7 +444,7 @@ export default function MessagesPage() {
                 {/* Emoji button */}
                 <button 
                   onClick={handleEmoji}
-                  className="p-2.5 text-gray-500 hover:text-yellow-500 hover:bg-yellow-50 rounded-full transition-colors"
+                  className="p-2 text-gray-500 hover:text-yellow-500 hover:bg-yellow-50 rounded-full transition-colors"
                   title="Add emoji (coming soon)"
                 >
                   <Smile size={20} />
@@ -453,7 +453,7 @@ export default function MessagesPage() {
                 {/* Voice message button */}
                 <button 
                   onClick={handleVoiceMessage}
-                  className="p-2.5 text-gray-500 hover:text-purple-500 hover:bg-purple-50 rounded-full transition-colors"
+                  className="p-2 text-gray-500 hover:text-purple-500 hover:bg-purple-50 rounded-full transition-colors"
                   title="Voice message (coming soon)"
                 >
                   <Mic size={20} />
@@ -463,7 +463,7 @@ export default function MessagesPage() {
                 <button 
                   onClick={handleSend} 
                   disabled={!messageInput.trim()}
-                  className={`p-2.5 rounded-full transition-all flex-shrink-0 ${
+                  className={`p-2 rounded-full transition-all flex-shrink-0 ${
                     messageInput.trim() 
                       ? 'bg-blue-500 text-white hover:bg-blue-600 shadow-md' 
                       : 'bg-gray-200 text-gray-400 cursor-not-allowed'
