@@ -17,7 +17,8 @@ export default function CallPage() {
   const [callId, setCallId] = useState<string | null>(callIdParam || null);
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const unsubscribeSignal = useRef<(() => void) | null>(null);
-  const callStartTimeRef = useRef<number | null>(null); //  track connected time
+  const callStartTimeRef = useRef<number | null>(null);
+  const isCallEnded = useRef(false); // 👈 prevent multiple end calls
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -29,55 +30,92 @@ export default function CallPage() {
         { urls: 'stun:stun1.l.google.com:19302' },
       ],
     });
+
     pc.onicecandidate = (event) => {
       if (event.candidate && callId) {
         const callRef = doc(db, 'calls', callId);
         updateDoc(callRef, { iceCandidates: arrayUnion(event.candidate.toJSON()) }).catch(console.error);
       }
     };
+
     pc.ontrack = (event) => {
       console.log('📹 ontrack: received', event.track.kind, 'track');
       onRemoteStream(event.streams[0]);
       setCallStatus('connected');
-      callStartTimeRef.current = Date.now(); //  call connected
+      callStartTimeRef.current = Date.now();
     };
+
+    // 👇 detect disconnection automatically
     pc.onconnectionstatechange = () => {
       console.log('Connection state:', pc.connectionState);
+      if (!isCallEnded.current && (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed')) {
+        console.log('Call disconnected unexpectedly – ending call');
+        endCall();
+      }
     };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log('ICE connection state:', pc.iceConnectionState);
+      if (!isCallEnded.current && (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'closed')) {
+        console.log('ICE connection lost – ending call');
+        endCall();
+      }
+    };
+
     return pc;
   };
 
-    const endCall = async () => {
+  const endCall = async () => {
+    if (isCallEnded.current) return; // already ended
+    isCallEnded.current = true;
+
     if (peerConnection.current) peerConnection.current.close();
     if (localStream) localStream.getTracks().forEach(track => track.stop());
-    
+
     if (callId) {
-        try {
+      try {
         const callRef = doc(db, 'calls', callId);
         let durationSec = 0;
         if (callStartTimeRef.current) {
-            durationSec = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
+          durationSec = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
         } else {
-            const callSnap = await getDoc(callRef);
-            const callData = callSnap.data();
-            if (callData?.createdAt) {
+          const callSnap = await getDoc(callRef);
+          const callData = callSnap.data();
+          if (callData?.createdAt) {
             const start = callData.createdAt.toDate ? callData.createdAt.toDate() : new Date(callData.createdAt);
             durationSec = Math.floor((Date.now() - start.getTime()) / 1000);
-            }
+          }
         }
-        await updateDoc(callRef, {   // ✅ await the update
-            status: 'ended',
-            endedAt: Timestamp.now(),
-            duration: durationSec,
+        await updateDoc(callRef, {
+          status: 'ended',
+          endedAt: Timestamp.now(),
+          duration: durationSec,
         });
-        } catch (err) {
+      } catch (err) {
         console.error('Error saving call end data:', err);
-        }
+      }
     }
-    
+
     if (unsubscribeSignal.current) unsubscribeSignal.current();
-    setTimeout(() => window.close(), 100); // ✅ give Firestore time to commit
+    setTimeout(() => window.close(), 100);
+  };
+
+  // 👇 beforeunload: try to end call if user closes tab
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (!isCallEnded.current && callId) {
+        const callRef = doc(db, 'calls', callId);
+        // Use updateDoc synchronously? beforeunload doesn't wait for async.
+        // Best effort: set endedAt but duration may be inaccurate.
+        updateDoc(callRef, {
+          status: 'ended',
+          endedAt: Timestamp.now(),
+        }).catch(console.error);
+      }
     };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [callId]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -94,7 +132,6 @@ export default function CallPage() {
 
           const pc = createPeerConnection((remote) => {
             setRemoteStream(remote);
-            // connection start time already set in ontrack
           });
           peerConnection.current = pc;
 
@@ -110,7 +147,7 @@ export default function CallPage() {
             callId: newCallId,
             callerId: currentUser.uid,
             calleeId: receiverId,
-            participants: [currentUser.uid, receiverId], //  added
+            participants: [currentUser.uid, receiverId],
             offer,
             iceCandidates: [],
             status: 'pending',
@@ -153,7 +190,6 @@ export default function CallPage() {
 
           const pc = createPeerConnection((remote) => {
             setRemoteStream(remote);
-            // connection start time already set in ontrack
           });
           peerConnection.current = pc;
 
@@ -222,7 +258,7 @@ export default function CallPage() {
       <div className="fixed inset-0 bg-black flex flex-col items-center justify-center">
         <video ref={localVideoRef} autoPlay muted playsInline className="absolute inset-0 w-full h-full object-cover" />
         <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center">
-          <div className="text-white text-2xl font-semibold mb-6"> Connecting...</div>
+          <div className="text-white text-2xl font-semibold mb-6">Connecting...</div>
           <button onClick={endCall} className="p-4 rounded-full bg-red-600 hover:bg-red-700">
             <PhoneOff size={28} />
           </button>
