@@ -17,8 +17,7 @@ export default function CallPage() {
   const [callId, setCallId] = useState<string | null>(callIdParam || null);
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const unsubscribeSignal = useRef<(() => void) | null>(null);
-  const callStartTimeRef = useRef<number | null>(null);
-  const isCallEnded = useRef(false); // 👈 prevent multiple end calls
+  const isCallEnded = useRef(false); // prevent multiple end calls
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -42,10 +41,9 @@ export default function CallPage() {
       console.log('📹 ontrack: received', event.track.kind, 'track');
       onRemoteStream(event.streams[0]);
       setCallStatus('connected');
-      callStartTimeRef.current = Date.now();
     };
 
-    // 👇 detect disconnection automatically
+    // Detect connection loss automatically
     pc.onconnectionstatechange = () => {
       console.log('Connection state:', pc.connectionState);
       if (!isCallEnded.current && (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed')) {
@@ -66,56 +64,31 @@ export default function CallPage() {
   };
 
   const endCall = async () => {
-    if (isCallEnded.current) return; // already ended
+    if (isCallEnded.current) return;
     isCallEnded.current = true;
 
+    // Close peer connection and streams
     if (peerConnection.current) peerConnection.current.close();
     if (localStream) localStream.getTracks().forEach(track => track.stop());
 
     if (callId) {
       try {
         const callRef = doc(db, 'calls', callId);
-        let durationSec = 0;
-        if (callStartTimeRef.current) {
-          durationSec = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
-        } else {
-          const callSnap = await getDoc(callRef);
-          const callData = callSnap.data();
-          if (callData?.createdAt) {
-            const start = callData.createdAt.toDate ? callData.createdAt.toDate() : new Date(callData.createdAt);
-            durationSec = Math.floor((Date.now() - start.getTime()) / 1000);
-          }
-        }
+        // Only update status and endedAt – no duration (will compute on client)
         await updateDoc(callRef, {
           status: 'ended',
           endedAt: Timestamp.now(),
-          duration: durationSec,
         });
+        console.log('Call ended successfully with endedAt');
       } catch (err) {
-        console.error('Error saving call end data:', err);
+        console.error('Failed to save call end data:', err);
       }
     }
 
     if (unsubscribeSignal.current) unsubscribeSignal.current();
-    setTimeout(() => window.close(), 100);
+    // Give Firestore a moment, then close window
+    setTimeout(() => window.close(), 200);
   };
-
-  // 👇 beforeunload: try to end call if user closes tab
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (!isCallEnded.current && callId) {
-        const callRef = doc(db, 'calls', callId);
-        // Use updateDoc synchronously? beforeunload doesn't wait for async.
-        // Best effort: set endedAt but duration may be inaccurate.
-        updateDoc(callRef, {
-          status: 'ended',
-          endedAt: Timestamp.now(),
-        }).catch(console.error);
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [callId]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -221,8 +194,12 @@ export default function CallPage() {
       window.close();
     }
 
+    // Cleanup: if component unmounts while call is still active, end it
     return () => {
-      if (unsubscribeSignal.current) unsubscribeSignal.current();
+      if (!isCallEnded.current && callId) {
+        console.log('Component unmounting – ending call');
+        endCall();
+      }
     };
   }, []);
 
