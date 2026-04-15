@@ -1,3 +1,4 @@
+// src\components\Sidebar.tsx
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { MessageCircle, Settings, LogOut, Menu, X, Users } from 'lucide-react';
