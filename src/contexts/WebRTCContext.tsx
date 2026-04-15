@@ -1,4 +1,3 @@
-// src/contexts/WebRTCContext.tsx
 import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { db, auth } from '../config/firebase';
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -54,17 +53,22 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         for (const change of snapshot.docChanges()) {
           if (change.type === 'added') {
             const callId = change.doc.id;
-            // Ignore if already accepted
             if (acceptedCalls.current.has(callId)) continue;
 
             const data = change.doc.data();
             const createdAt = data.createdAt?.toDate();
-            // Ignore stale calls (older than 60 seconds)
             if (createdAt && (Date.now() - createdAt.getTime() > 60000)) {
-              // Optionally mark as expired to prevent future appearances
               await updateDoc(doc(db, 'calls', callId), { status: 'expired' }).catch(console.error);
               continue;
             }
+
+            // Re-fetch to ensure status is still pending and no answer exists
+            const callRef = doc(db, 'calls', callId);
+            const callSnap = await getDoc(callRef);
+            const freshData = callSnap.data();
+            if (!freshData || freshData.status !== 'pending') continue;
+            if (freshData.answer) continue; // already answered
+
             const callerName = await getUserName(data.callerId);
             setIncomingCallInfo({
               callId,
