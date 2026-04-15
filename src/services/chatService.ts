@@ -31,6 +31,16 @@ export interface Conversation {
     updatedAt: Date;
 }
 
+export interface CallLog {
+    id: string;
+    callerId: string;
+    calleeId: string;
+    createdAt: Date;
+    endedAt?: Date;
+    isVideo: boolean;
+    status: 'active' | 'ended' | 'missed';
+}
+
 // Get or create a conversation between two users
 export const getOrCreateConversation = async (otherUserId: string): Promise<string> => {
     const currentUserId = auth.currentUser?.uid;
@@ -178,4 +188,35 @@ export const searchUsers = async (searchTerm: string) => {
     );
 
     return unique.filter(user => user.id !== currentUserId);
+};
+
+export const getCallsBetweenUsers = async (
+    userId1: string,
+    userId2: string
+): Promise<CallLog[]> => {
+    const callsRef = collection(db, 'calls');
+    const q = query(
+        callsRef,
+        where('participants', 'array-contains', userId1),
+        where('status', '==', 'ended'), // only fetch ended calls
+        orderBy('createdAt', 'asc')
+    );
+    const snapshot = await getDocs(q);
+    const allCalls = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            callerId: data.callerId,
+            calleeId: data.calleeId,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            endedAt: data.endedAt?.toDate(),
+            isVideo: data.isVideo,
+            status: data.status,
+        };
+    });
+    // Filter to ensure both participants match (because array-contains only checks one)
+    return allCalls.filter(call =>
+        (call.callerId === userId1 && call.calleeId === userId2) ||
+        (call.callerId === userId2 && call.calleeId === userId1)
+    );
 };
