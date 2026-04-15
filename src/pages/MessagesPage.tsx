@@ -29,7 +29,7 @@ const SearchInput = memo(({ value, onChange }: { value: string; onChange: (e: Re
   }, []);
   return (
     <div className="relative">
-      <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+      <Search className="absolute top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
       <input
         ref={inputRef}
         type="text"
@@ -45,7 +45,6 @@ const SearchInput = memo(({ value, onChange }: { value: string; onChange: (e: Re
 export default function MessagesPage() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const currentUser = auth.currentUser;
 
   const [conversations, setConversations] = useState<Conversation[]>([]);

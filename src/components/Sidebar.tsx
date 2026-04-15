@@ -1,6 +1,5 @@
-// src\components\Sidebar.tsx
 import { useState, useEffect } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { MessageCircle, Settings, LogOut, Menu, X, Users } from 'lucide-react';
 import { auth, db } from '../config/firebase';
 import { signOut } from 'firebase/auth';
@@ -10,8 +9,12 @@ export default function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userData, setUserData] = useState<any>(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Fetch user data from Firestore when auth state changes
+  // Check if current route is a conversation (/messages/:id)
+  const isConversationOpen = /^\/messages\/[^/]+$/.test(location.pathname);
+
+  // Fetch user data
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
@@ -19,7 +22,6 @@ export default function Sidebar() {
         if (userDoc.exists()) {
           setUserData(userDoc.data());
         } else {
-          // Fallback: use auth user data
           setUserData({
             name: user.displayName || user.email?.split('@')[0],
             email: user.email,
@@ -39,7 +41,7 @@ export default function Sidebar() {
 
   const navItems = [
     { to: '/messages', label: 'Messages', icon: MessageCircle },
-     { to: '/group-chats', label: 'Groups', icon: Users },
+    { to: '/group-chats', label: 'Groups', icon: Users },
     { to: '/settings', label: 'Settings', icon: Settings },
   ];
 
@@ -72,7 +74,6 @@ export default function Sidebar() {
         ))}
       </nav>
       <div className="p-4 border-t border-gray-100">
-        {/* User info */}
         {userData && (
           <div className="flex items-center gap-3 mb-4">
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-sm font-medium shadow-sm">
@@ -88,7 +89,7 @@ export default function Sidebar() {
         )}
         <button
           onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2 px-3 py-1.5 cursor-pointer  text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+          className="w-full flex items-center justify-center gap-2 px-3 py-1.5 cursor-pointer text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
         >
           <LogOut size={16} /> Sign Out
         </button>
@@ -98,15 +99,17 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile menu button */}
-      <div className="md:hidden fixed top-4 left-4 z-50">
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="p-2 bg-white rounded-full shadow-md border border-gray-100"
-        >
-          {mobileOpen ? <X size={20} className="text-gray-600" /> : <Menu size={20} className="text-gray-600" />}
-        </button>
-      </div>
+      {/* Mobile menu button - hide on desktop and also hide when a conversation is open */}
+      {!isConversationOpen && (
+        <div className="md:hidden fixed top-4 left-4 z-50">
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="p-2 bg-white rounded-full shadow-md border border-gray-100"
+          >
+            {mobileOpen ? <X size={20} className="text-gray-600" /> : <Menu size={20} className="text-gray-600" />}
+          </button>
+        </div>
+      )}
 
       {/* Desktop sidebar */}
       <aside className="hidden md:block fixed left-0 top-0 h-full w-64 z-40 shadow-sm">
