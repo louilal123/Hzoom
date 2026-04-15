@@ -17,7 +17,7 @@ export default function CallPage() {
   const [callId, setCallId] = useState<string | null>(callIdParam || null);
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const unsubscribeSignal = useRef<(() => void) | null>(null);
-  const callStartTimeRef = useRef<number | null>(null); // 👈 track connected time
+  const callStartTimeRef = useRef<number | null>(null); //  track connected time
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -39,7 +39,7 @@ export default function CallPage() {
       console.log('📹 ontrack: received', event.track.kind, 'track');
       onRemoteStream(event.streams[0]);
       setCallStatus('connected');
-      callStartTimeRef.current = Date.now(); // 👈 call connected
+      callStartTimeRef.current = Date.now(); //  call connected
     };
     pc.onconnectionstatechange = () => {
       console.log('Connection state:', pc.connectionState);
@@ -47,37 +47,37 @@ export default function CallPage() {
     return pc;
   };
 
-  const endCall = async () => {
+    const endCall = async () => {
     if (peerConnection.current) peerConnection.current.close();
     if (localStream) localStream.getTracks().forEach(track => track.stop());
     
     if (callId) {
-      try {
+        try {
         const callRef = doc(db, 'calls', callId);
         let durationSec = 0;
         if (callStartTimeRef.current) {
-          durationSec = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
+            durationSec = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
         } else {
-          const callSnap = await getDoc(callRef);
-          const callData = callSnap.data();
-          if (callData?.createdAt) {
+            const callSnap = await getDoc(callRef);
+            const callData = callSnap.data();
+            if (callData?.createdAt) {
             const start = callData.createdAt.toDate ? callData.createdAt.toDate() : new Date(callData.createdAt);
             durationSec = Math.floor((Date.now() - start.getTime()) / 1000);
-          }
+            }
         }
-        await updateDoc(callRef, {
-          status: 'ended',
-          endedAt: Timestamp.now(),
-          duration: durationSec,
+        await updateDoc(callRef, {   // ✅ await the update
+            status: 'ended',
+            endedAt: Timestamp.now(),
+            duration: durationSec,
         });
-      } catch (err) {
+        } catch (err) {
         console.error('Error saving call end data:', err);
-      }
+        }
     }
     
     if (unsubscribeSignal.current) unsubscribeSignal.current();
-    window.close();
-  };
+    setTimeout(() => window.close(), 100); // ✅ give Firestore time to commit
+    };
 
   useEffect(() => {
     if (!currentUser) {
@@ -110,7 +110,7 @@ export default function CallPage() {
             callId: newCallId,
             callerId: currentUser.uid,
             calleeId: receiverId,
-            participants: [currentUser.uid, receiverId], // 👈 added
+            participants: [currentUser.uid, receiverId], //  added
             offer,
             iceCandidates: [],
             status: 'pending',
