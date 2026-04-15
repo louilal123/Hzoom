@@ -214,8 +214,12 @@ export default function MessagesPage() {
   return (
     <div className="flex h-full">
       {/* Left sidebar: conversations + user search */}
-      <div className="w-full md:w-80 bg-white border-r border-gray-100 flex flex-col">
-        <div className="p-6 border-b border-gray-100">
+      {/* On mobile: show only when NO conversation is selected; on desktop always show */}
+      <div className={`
+        ${selectedConv ? 'hidden md:block' : 'block'} 
+        w-full md:w-80 bg-white border-r border-gray-100 flex flex-col
+      `}>
+        <div className="p-4 md:p-6 border-b border-gray-100">
           <SearchInput value={searchTerm} onChange={handleSearchChange} />
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -293,11 +297,15 @@ export default function MessagesPage() {
       </div>
 
       {/* Right chat area with timeline */}
-      <div className="flex-1 flex flex-col bg-gray-50">
+      {/* On mobile: show only when a conversation IS selected; on desktop always show */}
+      <div className={`
+        ${!selectedConv ? 'hidden md:flex' : 'flex'} 
+        flex-1 flex-col bg-gray-50
+      `}>
         {selectedConv ? (
           <>
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-gray-100 shadow-sm">
+            <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 shadow-sm">
               <div className="flex items-center gap-3">
                 <button onClick={() => navigate('/messages')} className="md:hidden p-1 -ml-2 text-gray-600">
                   <ChevronLeft size={24} />
@@ -324,13 +332,13 @@ export default function MessagesPage() {
             </div>
 
             {/* Timeline: messages and calls interleaved */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {timeline.map((item, idx) => {
                 if (item.type === 'message') {
                   const msg = item.data;
                   return (
                     <div key={msg.id || idx} className={`flex ${msg.senderId === currentUser?.uid ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[70%] px-4 py-2.5 text-sm shadow-sm ${
+                      <div className={`max-w-[80%] px-4 py-2.5 text-sm shadow-sm ${
                         msg.senderId === currentUser?.uid
                           ? 'bg-blue-500 text-white rounded-2xl rounded-br-md'
                           : 'bg-white text-gray-800 rounded-2xl rounded-bl-md border border-gray-200'
@@ -367,7 +375,7 @@ export default function MessagesPage() {
             </div>
 
             {/* Input area */}
-            <div className="p-4 bg-white border-t border-gray-100">
+            <div className="p-3 bg-white border-t border-gray-100">
               <div className="flex items-end gap-2">
                 <textarea
                   value={messageInput}
