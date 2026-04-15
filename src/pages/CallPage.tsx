@@ -1,8 +1,7 @@
-// src/pages/CallPage.tsx
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { auth, db } from '../config/firebase';
-import { doc, setDoc, onSnapshot, updateDoc, getDoc, arrayUnion } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, updateDoc, getDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { Mic, Video, PhoneOff } from 'lucide-react';
 
 export default function CallPage() {
@@ -18,6 +17,7 @@ export default function CallPage() {
   const [callId, setCallId] = useState<string | null>(callIdParam || null);
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const unsubscribeSignal = useRef<(() => void) | null>(null);
+  const callStartTimeRef = useRef<number | null>(null); // 👈 track connected time
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -38,11 +38,45 @@ export default function CallPage() {
     pc.ontrack = (event) => {
       console.log('📹 ontrack: received', event.track.kind, 'track');
       onRemoteStream(event.streams[0]);
+      setCallStatus('connected');
+      callStartTimeRef.current = Date.now(); // 👈 call connected
     };
     pc.onconnectionstatechange = () => {
       console.log('Connection state:', pc.connectionState);
     };
     return pc;
+  };
+
+  const endCall = async () => {
+    if (peerConnection.current) peerConnection.current.close();
+    if (localStream) localStream.getTracks().forEach(track => track.stop());
+    
+    if (callId) {
+      try {
+        const callRef = doc(db, 'calls', callId);
+        let durationSec = 0;
+        if (callStartTimeRef.current) {
+          durationSec = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
+        } else {
+          const callSnap = await getDoc(callRef);
+          const callData = callSnap.data();
+          if (callData?.createdAt) {
+            const start = callData.createdAt.toDate ? callData.createdAt.toDate() : new Date(callData.createdAt);
+            durationSec = Math.floor((Date.now() - start.getTime()) / 1000);
+          }
+        }
+        await updateDoc(callRef, {
+          status: 'ended',
+          endedAt: Timestamp.now(),
+          duration: durationSec,
+        });
+      } catch (err) {
+        console.error('Error saving call end data:', err);
+      }
+    }
+    
+    if (unsubscribeSignal.current) unsubscribeSignal.current();
+    window.close();
   };
 
   useEffect(() => {
@@ -60,7 +94,7 @@ export default function CallPage() {
 
           const pc = createPeerConnection((remote) => {
             setRemoteStream(remote);
-            setCallStatus('connected');
+            // connection start time already set in ontrack
           });
           peerConnection.current = pc;
 
@@ -76,11 +110,12 @@ export default function CallPage() {
             callId: newCallId,
             callerId: currentUser.uid,
             calleeId: receiverId,
+            participants: [currentUser.uid, receiverId], // 👈 added
             offer,
             iceCandidates: [],
             status: 'pending',
             isVideo,
-            createdAt: new Date(),
+            createdAt: Timestamp.now(),
           });
 
           unsubscribeSignal.current = onSnapshot(callRef, (snap) => {
@@ -118,7 +153,7 @@ export default function CallPage() {
 
           const pc = createPeerConnection((remote) => {
             setRemoteStream(remote);
-            setCallStatus('connected');
+            // connection start time already set in ontrack
           });
           peerConnection.current = pc;
 
@@ -155,16 +190,6 @@ export default function CallPage() {
     };
   }, []);
 
-  const endCall = () => {
-    if (peerConnection.current) peerConnection.current.close();
-    if (localStream) localStream.getTracks().forEach(track => track.stop());
-    if (callId) {
-      updateDoc(doc(db, 'calls', callId), { status: 'ended' }).catch(console.error);
-    }
-    if (unsubscribeSignal.current) unsubscribeSignal.current();
-    window.close();
-  };
-
   const toggleAudio = () => {
     const audioTrack = localStream?.getAudioTracks()[0];
     if (audioTrack) audioTrack.enabled = !audioTrack.enabled;
@@ -174,43 +199,30 @@ export default function CallPage() {
     if (videoTrack) videoTrack.enabled = !videoTrack.enabled;
   };
 
-  // Attach local stream to the local video element (works for both calling and connected states)
   useEffect(() => {
-    const videoElement = localVideoRef.current;
-    if (videoElement && localStream) {
-      console.log('Attaching local stream to video element');
-      videoElement.srcObject = localStream;
-      videoElement.onloadedmetadata = () => {
-        videoElement.play().catch(e => console.warn('Play failed:', e));
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.onloadedmetadata = () => {
+        localVideoRef.current?.play().catch(e => console.warn('Play failed:', e));
       };
     }
   }, [localStream]);
 
-  // Attach remote stream to the remote video element
   useEffect(() => {
-    const videoElement = remoteVideoRef.current;
-    if (videoElement && remoteStream) {
-      console.log('Attaching remote stream to remote video element');
-      videoElement.srcObject = remoteStream;
-      videoElement.onloadedmetadata = () => {
-        videoElement.play().catch(e => console.warn('Play failed:', e));
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.onloadedmetadata = () => {
+        remoteVideoRef.current?.play().catch(e => console.warn('Play failed:', e));
       };
     }
   }, [remoteStream]);
-
-  // In case the video element is recreated (conditional rendering), re-attach
-  useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
-    }
-  }, [localVideoRef.current, localStream]);
 
   if (callStatus === 'calling') {
     return (
       <div className="fixed inset-0 bg-black flex flex-col items-center justify-center">
         <video ref={localVideoRef} autoPlay muted playsInline className="absolute inset-0 w-full h-full object-cover" />
         <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center">
-          <div className="text-white text-2xl font-semibold mb-6">Calling...</div>
+          <div className="text-white text-2xl font-semibold mb-6"> Connecting...</div>
           <button onClick={endCall} className="p-4 rounded-full bg-red-600 hover:bg-red-700">
             <PhoneOff size={28} />
           </button>
@@ -225,7 +237,7 @@ export default function CallPage() {
         <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
         {!remoteStream && (
           <div className="absolute inset-0 flex items-center justify-center text-white text-xl bg-black/70">
-            Waiting for other person's video...
+            Connecting...
           </div>
         )}
         <div className="absolute bottom-6 right-6 w-36 h-48 bg-black rounded-xl overflow-hidden shadow-xl border-2 border-white/30 z-10">
