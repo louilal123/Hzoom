@@ -1,5 +1,5 @@
 import { useEffect, useState, memo, useCallback, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../config/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import {
@@ -29,7 +29,7 @@ const SearchInput = memo(({ value, onChange }: { value: string; onChange: (e: Re
   }, []);
   return (
     <div className="relative">
-      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+      <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
       <input
         ref={inputRef}
         type="text"
@@ -45,6 +45,7 @@ const SearchInput = memo(({ value, onChange }: { value: string; onChange: (e: Re
 export default function MessagesPage() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const currentUser = auth.currentUser;
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -57,6 +58,28 @@ export default function MessagesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+
+  const timelineRef = useRef<HTMLDivElement>(null); // For auto-scroll
+
+  // Hide Sidebar's hamburger menu when a conversation is open, and on desktop
+  useEffect(() => {
+    const hamburgerButton = document.querySelector('.md\\:hidden.fixed.top-4.left-4.z-50');
+    if (hamburgerButton) {
+      // Hide on desktop always
+      if (window.innerWidth >= 768) {
+        (hamburgerButton as HTMLElement).style.display = 'none';
+      } else if (conversationId) {
+        (hamburgerButton as HTMLElement).style.display = 'none';
+      } else {
+        (hamburgerButton as HTMLElement).style.display = 'block';
+      }
+    }
+    return () => {
+      if (hamburgerButton && !conversationId) {
+        (hamburgerButton as HTMLElement).style.display = 'block';
+      }
+    };
+  }, [conversationId]);
 
   const formatDuration = (totalSec: number): string => {
     const minutes = Math.floor(totalSec / 60);
@@ -77,6 +100,13 @@ export default function MessagesPage() {
     });
     return allItems;
   }, [messages, calls]);
+
+  // Auto-scroll to bottom when timeline changes or conversation opens
+  useEffect(() => {
+    if (timelineRef.current) {
+      timelineRef.current.scrollTop = timelineRef.current.scrollHeight;
+    }
+  }, [timeline, selectedConv]);
 
   // Load conversations
   useEffect(() => {
@@ -233,7 +263,8 @@ export default function MessagesPage() {
         ${selectedConv ? 'hidden md:block' : 'block'} 
         w-full md:w-80 bg-white/80 backdrop-blur-sm border-r border-gray-200/50 flex flex-col shadow-sm
       `}>
-        <div className="p-4 md:p-5 border-b border-gray-200/50">
+        {/* Add pt-14 on mobile to push content below hamburger */}
+        <div className="p-4 pt-14 md:pt-5 md:p-5 border-b border-gray-200/50">
           <h2 className="text-xl font-bold bg-gradient-to-r from-gray-700 to-gray-900 bg-clip-text text-transparent mb-3 hidden md:block">
             Chats
           </h2>
@@ -326,7 +357,7 @@ export default function MessagesPage() {
             {/* Header */}
             <div className="flex items-center justify-between px-4 md:px-6 py-3 bg-white/80 backdrop-blur-sm border-b border-gray-200/50 shadow-sm">
               <div className="flex items-center gap-3">
-                <button onClick={() => navigate('/messages')} className="md:hidden p-1 -ml-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
+                <button onClick={() => navigate('/messages')} className="md:hidden p-1 -ml-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors z-20">
                   <ChevronLeft size={24} />
                 </button>
                 <div className="relative">
@@ -353,8 +384,8 @@ export default function MessagesPage() {
               </div>
             </div>
 
-            {/* Timeline */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+            {/* Timeline with auto-scroll ref */}
+            <div ref={timelineRef} className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
               {timeline.map((item, idx) => {
                 if (item.type === 'message') {
                   const msg = item.data;
@@ -403,7 +434,6 @@ export default function MessagesPage() {
             {/* Input area with action buttons */}
             <div className="p-2 bg-white/80 backdrop-blur-sm border-t border-gray-200/50">
               <div className="flex items-end gap-2">
-                {/* Attachment button */}
                 <button 
                   onClick={handleAttachFile}
                   className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
@@ -411,8 +441,6 @@ export default function MessagesPage() {
                 >
                   <Paperclip size={20} />
                 </button>
-                
-                {/* Image button */}
                 <button 
                   onClick={handleAttachFile}
                   className="p-2 text-gray-500 hover:text-green-500 hover:bg-green-50 rounded-full transition-colors"
@@ -420,8 +448,6 @@ export default function MessagesPage() {
                 >
                   <Image size={20} />
                 </button>
-
-                {/* Text input */}
                 <textarea
                   value={messageInput}
                   onChange={(e) => {
@@ -440,8 +466,6 @@ export default function MessagesPage() {
                   className="flex-1 px-4 py-2.5 bg-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none overflow-y-auto transition-all"
                   style={{ minHeight: '44px', maxHeight: '120px' }}
                 />
-                
-                {/* Emoji button */}
                 <button 
                   onClick={handleEmoji}
                   className="p-2 text-gray-500 hover:text-yellow-500 hover:bg-yellow-50 rounded-full transition-colors"
@@ -449,8 +473,6 @@ export default function MessagesPage() {
                 >
                   <Smile size={20} />
                 </button>
-
-                {/* Voice message button */}
                 <button 
                   onClick={handleVoiceMessage}
                   className="p-2 text-gray-500 hover:text-purple-500 hover:bg-purple-50 rounded-full transition-colors"
@@ -458,8 +480,6 @@ export default function MessagesPage() {
                 >
                   <Mic size={20} />
                 </button>
-                
-                {/* Send button */}
                 <button 
                   onClick={handleSend} 
                   disabled={!messageInput.trim()}
