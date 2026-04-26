@@ -29,7 +29,7 @@ const SearchInput = memo(({ value, onChange }: { value: string; onChange: (e: Re
   }, []);
   return (
     <div className="relative">
-      <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+      <Search className="absolute top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
       <input
         ref={inputRef}
         type="text"
@@ -58,7 +58,27 @@ export default function MessagesPage() {
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
 
-  const timelineRef = useRef<HTMLDivElement>(null);
+  const timelineRef = useRef<HTMLDivElement>(null); // For auto-scroll
+
+  // Hide Sidebar's hamburger menu when a conversation is open, and on desktop
+  useEffect(() => {
+    const hamburgerButton = document.querySelector('.md\\:hidden.fixed.top-4.left-4.z-50');
+    if (hamburgerButton) {
+      // Hide on desktop always
+      if (window.innerWidth >= 768) {
+        (hamburgerButton as HTMLElement).style.display = 'none';
+      } else if (conversationId) {
+        (hamburgerButton as HTMLElement).style.display = 'none';
+      } else {
+        (hamburgerButton as HTMLElement).style.display = 'block';
+      }
+    }
+    return () => {
+      if (hamburgerButton && !conversationId) {
+        (hamburgerButton as HTMLElement).style.display = 'block';
+      }
+    };
+  }, [conversationId]);
 
   const formatDuration = (totalSec: number): string => {
     const minutes = Math.floor(totalSec / 60);
@@ -80,6 +100,7 @@ export default function MessagesPage() {
     return allItems;
   }, [messages, calls]);
 
+  // Auto-scroll to bottom when timeline changes or conversation opens
   useEffect(() => {
     if (timelineRef.current) {
       timelineRef.current.scrollTop = timelineRef.current.scrollHeight;
@@ -124,6 +145,7 @@ export default function MessagesPage() {
     fetchAllUsers();
   }, [currentUser]);
 
+  // Sync selected conversation from URL
   useEffect(() => {
     if (conversationId && conversations.length > 0) {
       const conv = conversations.find(c => c.id === conversationId);
@@ -133,6 +155,7 @@ export default function MessagesPage() {
     }
   }, [conversationId, conversations]);
 
+  // Listen to messages of selected conversation
   useEffect(() => {
     if (!selectedConv) return;
     const unsubscribe = listenToMessages(selectedConv.id, (msgs) => {
@@ -141,6 +164,7 @@ export default function MessagesPage() {
     return () => unsubscribe();
   }, [selectedConv]);
 
+  // Fetch calls between the two users when conversation changes
   useEffect(() => {
     if (!selectedConv || !currentUser) return;
     const otherId = selectedConv.participants.find(id => id !== currentUser.uid);
@@ -218,18 +242,28 @@ export default function MessagesPage() {
     }
   };
 
-  const handleAttachFile = () => console.log('Attach file (coming soon)');
-  const handleEmoji = () => console.log('Emoji picker (coming soon)');
-  const handleVoiceMessage = () => console.log('Voice message (coming soon)');
+  // Placeholder for future features
+  const handleAttachFile = () => {
+    console.log('Attach file (coming soon)');
+  };
+
+  const handleEmoji = () => {
+    console.log('Emoji picker (coming soon)');
+  };
+
+  const handleVoiceMessage = () => {
+    console.log('Voice message (coming soon)');
+  };
 
   return (
     <div className="flex h-full bg-gradient-to-br from-gray-50 to-white">
-      {/* Left sidebar – conversation list */}
+      {/* Left sidebar */}
       <div className={`
-        ${selectedConv ? 'hidden md:block' : 'block'}
+        ${selectedConv ? 'hidden md:block' : 'block'} 
         w-full md:w-80 bg-white/80 backdrop-blur-sm border-r border-gray-200/50 flex flex-col shadow-sm
       `}>
-        <div className="p-4 md:p-5 border-b border-gray-200/50">
+        {/* Add pt-14 on mobile to push content below hamburger */}
+        <div className="p-4 pt-14 md:pt-5 md:p-5 border-b border-gray-200/50">
           <h2 className="text-xl font-bold bg-gradient-to-r from-gray-700 to-gray-900 bg-clip-text text-transparent mb-3 hidden md:block">
             Chats
           </h2>
@@ -314,18 +348,15 @@ export default function MessagesPage() {
 
       {/* Right chat area */}
       <div className={`
-        ${!selectedConv ? 'hidden md:flex' : 'flex'}
+        ${!selectedConv ? 'hidden md:flex' : 'flex'} 
         flex-1 flex-col bg-gray-50
       `}>
         {selectedConv ? (
           <>
-            {/* Chat Header */}
-            <div className="flex items-center justify-between px-4 py-3 bg-white/80 backdrop-blur-sm border-b border-gray-200/50 shadow-sm">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 md:px-6 py-3 bg-white/80 backdrop-blur-sm border-b border-gray-200/50 shadow-sm">
               <div className="flex items-center gap-3">
-                <button
-                  onClick={() => navigate('/messages')}
-                  className="md:hidden p-1 -ml-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
-                >
+                <button onClick={() => navigate('/messages')} className="md:hidden p-1 -ml-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors z-20">
                   <ChevronLeft size={24} />
                 </button>
                 <div className="relative">
@@ -334,10 +365,8 @@ export default function MessagesPage() {
                   </div>
                   <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm md:text-base font-semibold text-gray-800 truncate max-w-[150px] md:max-w-none">
-                    {getConversationDisplayName(selectedConv)}
-                  </p>
+                <div>
+                  <p className="text-base font-semibold text-gray-800">{getConversationDisplayName(selectedConv)}</p>
                   <p className="text-xs text-green-600">Online</p>
                 </div>
               </div>
@@ -354,15 +383,15 @@ export default function MessagesPage() {
               </div>
             </div>
 
-            {/* Timeline */}
-            <div ref={timelineRef} className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3 custom-scrollbar">
+            {/* Timeline with auto-scroll ref */}
+            <div ref={timelineRef} className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
               {timeline.map((item, idx) => {
                 if (item.type === 'message') {
                   const msg = item.data;
                   const isOwn = msg.senderId === currentUser?.uid;
                   return (
-                    <div key={msg.id || idx} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[85%] md:max-w-[70%] px-4 py-2.5 text-sm shadow-sm ${
+                    <div key={msg.id || idx} className={`flex ${isOwn ? 'justify-end' : 'justify-start'} animate-fade-in`}>
+                      <div className={`max-w-[80%] md:max-w-[70%] px-4 py-2.5 text-sm shadow-sm transition-all ${
                         isOwn
                           ? 'bg-blue-500 text-white rounded-2xl rounded-br-md'
                           : 'bg-white text-gray-800 rounded-2xl rounded-bl-md border border-gray-200/80'
@@ -386,7 +415,7 @@ export default function MessagesPage() {
                     }
                   }
                   return (
-                    <div key={call.id} className="flex justify-center">
+                    <div key={call.id} className="flex justify-center animate-fade-in">
                       <div className="bg-gray-100/80 text-gray-600 text-xs px-3 py-1.5 rounded-full shadow-sm backdrop-blur-sm">
                         {callType}{durationText} • {new Date(call.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
@@ -401,20 +430,20 @@ export default function MessagesPage() {
               )}
             </div>
 
-            {/* Input area */}
+            {/* Input area with action buttons */}
             <div className="p-2 bg-white/80 backdrop-blur-sm border-t border-gray-200/50">
-              <div className="flex items-end gap-1 md:gap-2">
+              <div className="flex items-end gap-2">
                 <button 
                   onClick={handleAttachFile}
                   className="p-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
-                  title="Attach file"
+                  title="Attach file (coming soon)"
                 >
                   <Paperclip size={20} />
                 </button>
                 <button 
                   onClick={handleAttachFile}
                   className="p-2 text-gray-500 hover:text-green-500 hover:bg-green-50 rounded-full transition-colors"
-                  title="Send image"
+                  title="Send image (coming soon)"
                 >
                   <Image size={20} />
                 </button>
@@ -439,14 +468,14 @@ export default function MessagesPage() {
                 <button 
                   onClick={handleEmoji}
                   className="p-2 text-gray-500 hover:text-yellow-500 hover:bg-yellow-50 rounded-full transition-colors"
-                  title="Add emoji"
+                  title="Add emoji (coming soon)"
                 >
                   <Smile size={20} />
                 </button>
                 <button 
                   onClick={handleVoiceMessage}
                   className="p-2 text-gray-500 hover:text-purple-500 hover:bg-purple-50 rounded-full transition-colors"
-                  title="Voice message"
+                  title="Voice message (coming soon)"
                 >
                   <Mic size={20} />
                 </button>

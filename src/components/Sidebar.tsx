@@ -1,4 +1,3 @@
-// src/components/Sidebar.tsx
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { MessageCircle, Settings, LogOut, Menu, X, Users } from 'lucide-react';
@@ -12,14 +11,10 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Hide sidebar hamburger when a conversation is open on mobile
+  // Check if current route is a conversation (/messages/:id)
   const isConversationOpen = /^\/messages\/[^/]+$/.test(location.pathname);
 
-  // Close drawer on route change
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [location.pathname]);
-
+  // Fetch user data
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
@@ -52,20 +47,14 @@ export default function Sidebar() {
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-white border-r border-gray-100">
-      <div className="px-4 py-4 flex items-center justify-between">
-        <span className="text-2xl font-bold bg-gradient-to-r from-gray-500 to-gray-700 bg-clip-text text-transparent">
-          hzoom
-        </span>
-        {/* Close button on mobile inside drawer */}
-        <button
-          className="md:hidden p-1 text-gray-400 hover:text-gray-600"
-          onClick={() => setMobileOpen(false)}
-        >
-          <X size={20} />
-        </button>
+      <div className="px-2 py-2">
+        <div className="flex items-center gap-2 text-3xl font-bold">
+          <span className="bg-gradient-to-r from-gray-500 to-gray-700 bg-clip-text text-transparent drop-shadow-sm">
+            hzoom
+          </span>
+        </div>
       </div>
-
-      <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-4 py-6 space-y-1">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
@@ -84,14 +73,13 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
-
       <div className="p-4 border-t border-gray-100">
         {userData && (
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-sm font-medium shadow-sm flex-shrink-0">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-sm font-medium shadow-sm">
               {(userData.name?.[0] || userData.email?.[0] || 'U').toUpperCase()}
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 truncate">
               <p className="text-sm font-semibold text-gray-800 truncate">
                 {userData.name || userData.email?.split('@')[0]}
               </p>
@@ -111,35 +99,31 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile hamburger — hidden when a conversation is open */}
+      {/* Mobile menu button - hide on desktop and also hide when a conversation is open */}
       {!isConversationOpen && (
         <div className="md:hidden fixed top-4 left-4 z-50">
           <button
-            onClick={() => setMobileOpen(true)}
+            onClick={() => setMobileOpen(!mobileOpen)}
             className="p-2 bg-white rounded-full shadow-md border border-gray-100"
-            aria-label="Open menu"
           >
-            <Menu size={20} className="text-gray-600" />
+            {mobileOpen ? <X size={20} className="text-gray-600" /> : <Menu size={20} className="text-gray-600" />}
           </button>
         </div>
       )}
 
-      {/* Desktop fixed sidebar */}
+      {/* Desktop sidebar */}
       <aside className="hidden md:block fixed left-0 top-0 h-full w-64 z-40 shadow-sm">
         <SidebarContent />
       </aside>
 
-      {/* Mobile overlay backdrop */}
+      {/* Mobile overlay */}
       {mobileOpen && (
-        <div
-          className="md:hidden fixed inset-0 bg-black/30 z-40 backdrop-blur-sm"
-          onClick={() => setMobileOpen(false)}
-        />
+        <div className="md:hidden fixed inset-0 bg-black/30 z-40" onClick={() => setMobileOpen(false)} />
       )}
 
-      {/* Mobile slide-in drawer */}
+      {/* Mobile drawer */}
       <div
-        className={`md:hidden fixed top-0 left-0 h-full w-72 bg-white z-50 transform transition-transform duration-200 ease-in-out shadow-xl ${
+        className={`md:hidden fixed top-0 left-0 h-full w-64 bg-white z-50 transform transition-transform duration-200 shadow-xl ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

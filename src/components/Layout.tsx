@@ -1,4 +1,4 @@
-// src/components/Layout.tsx
+// src\components\Layout.tsx
 import { useEffect, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { auth } from '../config/firebase';
@@ -30,10 +30,8 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
       <Sidebar />
-      {/* On mobile: no left margin (sidebar is a drawer overlay).
-          On desktop (md+): leave room for the fixed 64-wide sidebar. */}
-      <main className="md:ml-64 h-screen overflow-hidden">
-        <Outlet />
+      <main className="md:ml-64 h-screen">
+        <Outlet />  {/*  renders either MessagesPage or SettingsPage */}
       </main>
     </div>
   );
