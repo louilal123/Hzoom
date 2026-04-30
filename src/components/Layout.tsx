@@ -12,7 +12,7 @@ export default function Layout() {
 
   const isConversationOpen = /^\/messages\/[^/]+$/.test(location.pathname);
 
-  // Redirect if not logged in (already handled by AuthGuard, but double-check)
+  // Redirect if not logged double-check)
   if (!loading && !user) {
     navigate('/', { replace: true });
     return null;

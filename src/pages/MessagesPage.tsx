@@ -63,7 +63,7 @@ export default function MessagesPage() {
 
   const timelineRef = useRef<HTMLDivElement>(null);
 
-  // Presence dot component – shows green/gray dot
+  // Presence dot component
   const PresenceDot = ({ uid }: { uid: string }) => {
     const { online } = useUserPresence(uid);
     return (
@@ -76,10 +76,28 @@ export default function MessagesPage() {
     );
   };
 
-  // Presence text component – shows "Online now" or "Active X ago"
+  // Presence text component
   const PresenceText = ({ uid }: { uid: string }) => {
     const { lastSeenText } = useUserPresence(uid);
     return <span className="text-xs text-gray-500">{lastSeenText}</span>;
+  };
+
+  // Typing indicator with avatar and three dots
+  const TypingBubble = () => {
+    const displayName = getConversationDisplayName(selectedConv!);
+    const initials = getInitials(displayName);
+    return (
+      <div className="flex items-center gap-1">
+        <div className="w-6 h-6 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-800 text-[10px] font-medium shadow-sm">
+          {initials}
+        </div>
+        <div className="flex gap-0.5">
+          <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
+          <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
+          <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
+        </div>
+      </div>
+    );
   };
 
   const getInitials = (name: string) => {
@@ -184,10 +202,7 @@ export default function MessagesPage() {
     fetchCalls();
   }, [selectedConv, currentUser]);
 
-  // Compute other user ID for selected conversation
   const otherId = selectedConv?.participants.find(id => id !== currentUser?.uid);
-
-  // Typing indicator for the other user
   const isOtherTyping = useTypingIndicator(selectedConv?.id ?? '', otherId ?? '');
 
   // Stop typing when leaving conversation or unmounting
@@ -208,7 +223,6 @@ export default function MessagesPage() {
     try {
       await sendMessage(selectedConv.id, messageInput);
       setMessageInput('');
-      // Stop typing indicator
       clearTypingStatus(selectedConv.id, currentUser!.uid);
     } catch (error) {
       console.error('Send error:', error);
@@ -406,12 +420,7 @@ export default function MessagesPage() {
                     {getConversationDisplayName(selectedConv)}
                   </p>
                   {otherId && (
-                    <div className="flex items-center gap-1">
-                      <PresenceText uid={otherId} />
-                      {isOtherTyping && (
-                        <span className="text-xs text-blue-500 animate-pulse">typing...</span>
-                      )}
-                    </div>
+                    isOtherTyping ? <TypingBubble /> : <PresenceText uid={otherId} />
                   )}
                 </div>
               </div>
@@ -436,6 +445,14 @@ export default function MessagesPage() {
                   const isOwn = msg.senderId === currentUser?.uid;
                   return (
                     <div key={msg.id || idx} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                      {/* Add avatar for other person's messages */}
+                      {!isOwn && (
+                        <div className="flex-shrink-0 mr-2">
+                          <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-800 text-xs font-medium shadow-sm">
+                            {getInitials(getConversationDisplayName(selectedConv!))}
+                          </div>
+                        </div>
+                      )}
                       <div className={`max-w-[85%] md:max-w-[70%] px-4 py-2.5 text-sm shadow-sm ${
                         isOwn
                           ? 'bg-blue-500 text-white rounded-2xl rounded-br-md'
