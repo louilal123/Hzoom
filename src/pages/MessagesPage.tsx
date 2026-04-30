@@ -18,6 +18,8 @@ import {
   Paperclip, Smile, Image, Mic, FileText, CheckCheck 
 } from 'lucide-react';
 import { useUserPresence } from '../hooks/useUserPresence';
+import { setTypingStatus, clearTypingStatus } from '../services/typingService';
+import { useTypingIndicator } from '../hooks/useTypingIndicator';
 
 type TimelineItem = 
   | { type: 'message'; data: Message }
@@ -182,6 +184,21 @@ export default function MessagesPage() {
     fetchCalls();
   }, [selectedConv, currentUser]);
 
+  // Compute other user ID for selected conversation
+  const otherId = selectedConv?.participants.find(id => id !== currentUser?.uid);
+
+  // Typing indicator for the other user
+  const isOtherTyping = useTypingIndicator(selectedConv?.id ?? '', otherId ?? '');
+
+  // Stop typing when leaving conversation or unmounting
+  useEffect(() => {
+    return () => {
+      if (selectedConv?.id && currentUser?.uid) {
+        clearTypingStatus(selectedConv.id, currentUser.uid);
+      }
+    };
+  }, [selectedConv?.id, currentUser?.uid]);
+
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
   }, []);
@@ -191,6 +208,8 @@ export default function MessagesPage() {
     try {
       await sendMessage(selectedConv.id, messageInput);
       setMessageInput('');
+      // Stop typing indicator
+      clearTypingStatus(selectedConv.id, currentUser!.uid);
     } catch (error) {
       console.error('Send error:', error);
     }
@@ -251,8 +270,21 @@ export default function MessagesPage() {
   const handleEmoji = () => console.log('Emoji picker (coming soon)');
   const handleVoiceMessage = () => console.log('Voice message (coming soon)');
 
-  // Compute other user ID for selected conversation (used multiple times)
-  const otherId = selectedConv?.participants.find(id => id !== currentUser?.uid);
+  // Typing broadcast on input change
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setMessageInput(val);
+    e.target.style.height = 'auto';
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+
+    if (selectedConv?.id && currentUser?.uid) {
+      if (val.trim()) {
+        setTypingStatus(selectedConv.id, currentUser.uid);
+      } else {
+        clearTypingStatus(selectedConv.id, currentUser.uid);
+      }
+    }
+  };
 
   return (
     <div className="flex h-full bg-gradient-to-br from-gray-50 to-white overflow-hidden">
@@ -373,7 +405,14 @@ export default function MessagesPage() {
                   <p className="text-sm md:text-base font-semibold text-gray-800 truncate">
                     {getConversationDisplayName(selectedConv)}
                   </p>
-                  {otherId && <PresenceText uid={otherId} />}
+                  {otherId && (
+                    <div className="flex items-center gap-1">
+                      <PresenceText uid={otherId} />
+                      {isOtherTyping && (
+                        <span className="text-xs text-blue-500 animate-pulse">typing...</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
@@ -459,11 +498,7 @@ export default function MessagesPage() {
 
                 <textarea
                   value={messageInput}
-                  onChange={(e) => {
-                    setMessageInput(e.target.value);
-                    e.target.style.height = 'auto';
-                    e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
-                  }}
+                  onChange={handleInputChange}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
