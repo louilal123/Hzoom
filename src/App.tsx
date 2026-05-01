@@ -11,12 +11,11 @@ import GroupsPage from './pages/GroupsPage';
 import CallPage from './pages/CallPage';
 import AuthGuard from './components/AuthGuard';
 import PublicRoute from './components/PublicRoute';
-import PresenceListener from './components/PresenceListener';
+
 function App() {
   return (
     <Router>
       <AuthProvider>
-          <PresenceListener />
         <WebRTCProvider>
           <Routes>
             {/* Public routes – redirect to /messages if already authenticated */}
@@ -30,7 +29,7 @@ function App() {
               <Route path="/call" element={<CallPage />} />
             </Route>
 
-            {/* Routes with sidebar (Layout) – automatically protected by Layout's auth check */}
+            {/* Routes with sidebar (Layout) */}
             <Route element={<Layout />}>
               <Route path="/messages" element={<MessagesPage />} />
               <Route path="/messages/:conversationId" element={<MessagesPage />} />
@@ -40,7 +39,6 @@ function App() {
           </Routes>
           <CallModal />
         </WebRTCProvider>
-          <PresenceListener />
       </AuthProvider>
     </Router>
   );

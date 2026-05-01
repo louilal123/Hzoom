@@ -1,9 +1,10 @@
+// src\contexts\AuthContext.tsx
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { auth, db } from '../config/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import type { User } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 
 interface AuthUser {
@@ -32,6 +33,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  // Auth state listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: User | null) => {
       if (!firebaseUser) {
@@ -53,6 +55,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
     return () => unsubscribe();
   }, []);
+
+  // Presence heartbeat – writes lastSeen every 10s
+  useEffect(() => {
+    if (!user) return;
+    const docRef = doc(db, 'presence', user.uid);
+    setDoc(docRef, { lastSeen: serverTimestamp() }, { merge: true }).catch(console.error);
+    const id = setInterval(() => {
+      setDoc(docRef, { lastSeen: serverTimestamp() }, { merge: true }).catch(console.error);
+    }, 10_000);
+    return () => clearInterval(id);
+  }, [user]);
 
   const logout = async () => {
     await signOut(auth);

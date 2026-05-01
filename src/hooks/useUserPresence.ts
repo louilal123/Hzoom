@@ -1,9 +1,9 @@
-import { useEffect, useState, useRef } from 'react';
-import { doc, getDoc, Timestamp } from 'firebase/firestore';
+// src\hooks\useUserPresence.ts
+import { useEffect, useState } from 'react';
+import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 const ONLINE_THRESHOLD_MS = 15_000; // 15 seconds
-const POLL_INTERVAL_MS = 15_000;
 
 function timeAgo(date: Date): string {
     const diff = Date.now() - date.getTime();
@@ -19,35 +19,30 @@ function timeAgo(date: Date): string {
 
 export function useUserPresence(uid: string | undefined) {
     const [lastSeen, setLastSeen] = useState<Timestamp | null>(null);
-    const mountedRef = useRef(true);
 
     useEffect(() => {
-        mountedRef.current = true;
-        if (!uid) return;
+        if (!uid) {
+            setLastSeen(null);
+            return;
+        }
 
-        let timer: ReturnType<typeof setInterval>;
-
-        const fetchPresence = async () => {
-            try {
-                const snap = await getDoc(doc(db, 'presence', uid));
-                if (snap.exists() && mountedRef.current) {
+        const docRef = doc(db, 'presence', uid);
+        const unsub = onSnapshot(
+            docRef,
+            (snap) => {
+                if (snap.exists()) {
                     setLastSeen(snap.data().lastSeen ?? null);
-                } else if (mountedRef.current) {
+                } else {
                     setLastSeen(null);
                 }
-            } catch (error) {
-                console.error('Presence fetch error:', error);
+            },
+            (error) => {
+                console.error('Presence listener error:', error);
+                setLastSeen(null);
             }
-        };
+        );
 
-        // Fetch immediately and then poll
-        fetchPresence();
-        timer = setInterval(fetchPresence, POLL_INTERVAL_MS);
-
-        return () => {
-            mountedRef.current = false;
-            clearInterval(timer);
-        };
+        return unsub;
     }, [uid]);
 
     const online = lastSeen

@@ -1,3 +1,4 @@
+// src\services\typingService.ts
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 

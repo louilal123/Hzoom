@@ -1,3 +1,4 @@
+// src\hooks\useTypingIndicator.ts
 import { useEffect, useState, useRef } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';

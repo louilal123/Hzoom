@@ -45,6 +45,32 @@ const SearchInput = memo(({ value, onChange }: { value: string; onChange: (e: Re
   );
 });
 
+// ✅ These are now stable components – defined outside MessagesPage
+const PresenceDot = ({ uid }: { uid: string }) => {
+  const { online } = useUserPresence(uid);
+  return (
+    <span
+      className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+        online ? 'bg-green-500' : 'bg-gray-300'
+      }`}
+      title={online ? 'Online now' : 'Offline'}
+    />
+  );
+};
+
+const PresenceText = ({ uid }: { uid: string }) => {
+  const { lastSeenText } = useUserPresence(uid);
+  return <span className="text-xs text-gray-500">{lastSeenText}</span>;
+};
+
+const TypingDots = () => (
+  <div className="flex items-center gap-0.5">
+    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
+    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
+    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
+  </div>
+);
+
 export default function MessagesPage() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
@@ -62,43 +88,6 @@ export default function MessagesPage() {
   const [loadingUsers, setLoadingUsers] = useState(false);
 
   const timelineRef = useRef<HTMLDivElement>(null);
-
-  // Presence dot component
-  const PresenceDot = ({ uid }: { uid: string }) => {
-    const { online } = useUserPresence(uid);
-    return (
-      <span
-        className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-          online ? 'bg-green-500' : 'bg-gray-300'
-        }`}
-        title={online ? 'Online now' : 'Offline'}
-      />
-    );
-  };
-
-  // Presence text component
-  const PresenceText = ({ uid }: { uid: string }) => {
-    const { lastSeenText } = useUserPresence(uid);
-    return <span className="text-xs text-gray-500">{lastSeenText}</span>;
-  };
-
-  // Typing indicator with avatar and three dots
-  const TypingBubble = () => {
-    const displayName = getConversationDisplayName(selectedConv!);
-    const initials = getInitials(displayName);
-    return (
-      <div className="flex items-center gap-1">
-        <div className="w-6 h-6 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-800 text-[10px] font-medium shadow-sm">
-          {initials}
-        </div>
-        <div className="flex gap-0.5">
-          <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
-          <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
-          <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
-        </div>
-      </div>
-    );
-  };
 
   const getInitials = (name: string) => {
     if (!name) return '??';
@@ -419,9 +408,7 @@ export default function MessagesPage() {
                   <p className="text-sm md:text-base font-semibold text-gray-800 truncate">
                     {getConversationDisplayName(selectedConv)}
                   </p>
-                  {otherId && (
-                    isOtherTyping ? <TypingBubble /> : <PresenceText uid={otherId} />
-                  )}
+                  {otherId && <PresenceText uid={otherId} />}
                 </div>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
@@ -445,7 +432,6 @@ export default function MessagesPage() {
                   const isOwn = msg.senderId === currentUser?.uid;
                   return (
                     <div key={msg.id || idx} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
-                      {/* Add avatar for other person's messages */}
                       {!isOwn && (
                         <div className="flex-shrink-0 mr-2">
                           <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-800 text-xs font-medium shadow-sm">
@@ -485,6 +471,21 @@ export default function MessagesPage() {
                   );
                 }
               })}
+
+              {/* Typing indicator (inside timeline) */}
+              {otherId && isOtherTyping && (
+                <div className="flex justify-start">
+                  <div className="flex-shrink-0 mr-2">
+                    <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-800 text-xs font-medium shadow-sm">
+                      {getInitials(getConversationDisplayName(selectedConv!))}
+                    </div>
+                  </div>
+                  <div className="bg-white border border-gray-200/80 rounded-2xl rounded-bl-md px-4 py-2.5 shadow-sm">
+                    <TypingDots />
+                  </div>
+                </div>
+              )}
+
               {timeline.length === 0 && (
                 <div className="flex justify-center text-gray-400 text-sm py-12">
                   No messages or calls yet. Say hello!
