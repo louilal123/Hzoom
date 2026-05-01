@@ -290,7 +290,7 @@ export default function MessagesPage() {
   };
 
   return (
-    <div className="flex h-full bg-gradient-to-br from-gray-50 to-white overflow-hidden">
+    <div className="flex h-screen bg-gradient-to-br from-gray-50 to-white overflow-hidden">
       {/* Left sidebar – conversation list */}
       <div className={`
         ${selectedConv ? 'hidden md:block' : 'block'}
