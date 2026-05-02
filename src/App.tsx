@@ -4,7 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import CallModal from './components/CallModal';
 import Login from './pages/Login';
 import SetPassword from './pages/SetPassword';
-import Layout from './components/Layout';
+import Layout from './components/layout/Layout';
 import MessagesPage from './pages/MessagesPage';
 import SettingsPage from './pages/SettingsPage';
 import GroupsPage from './pages/GroupsPage';

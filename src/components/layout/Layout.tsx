@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { MessageCircle, Settings, LogOut, Menu, X, Users, ChevronLeft, } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);

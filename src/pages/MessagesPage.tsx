@@ -20,6 +20,12 @@ import {
 import { useUserPresence } from '../hooks/useUserPresence';
 import { setTypingStatus, clearTypingStatus } from '../services/typingService';
 import { useTypingIndicator } from '../hooks/useTypingIndicator';
+import { getInitials } from '../utils/getInitials';
+
+// UI components
+import PresenceDot from '../components/ui/PresenceDot';
+import TypingDots from '../components/ui/TypingDots';
+import ConversationList from '../components/ConversationList';
 
 type TimelineItem = 
   | { type: 'message'; data: Message }
@@ -45,31 +51,11 @@ const SearchInput = memo(({ value, onChange }: { value: string; onChange: (e: Re
   );
 });
 
-// ✅ These are now stable components – defined outside MessagesPage
-const PresenceDot = ({ uid }: { uid: string }) => {
-  const { online } = useUserPresence(uid);
-  return (
-    <span
-      className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-        online ? 'bg-green-500' : 'bg-gray-300'
-      }`}
-      title={online ? 'Online now' : 'Offline'}
-    />
-  );
-};
-
+// Still defined outside for stability
 const PresenceText = ({ uid }: { uid: string }) => {
   const { lastSeenText } = useUserPresence(uid);
   return <span className="text-xs text-gray-500">{lastSeenText}</span>;
 };
-
-const TypingDots = () => (
-  <div className="flex items-center gap-0.5">
-    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
-    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
-    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
-  </div>
-);
 
 export default function MessagesPage() {
   const { conversationId } = useParams<{ conversationId: string }>();
@@ -86,17 +72,8 @@ export default function MessagesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
-
+const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
-
-  const getInitials = (name: string) => {
-    if (!name) return '??';
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
-  };
 
   const formatDuration = (totalSec: number): string => {
     const minutes = Math.floor(totalSec / 60);
@@ -212,6 +189,12 @@ export default function MessagesPage() {
     try {
       await sendMessage(selectedConv.id, messageInput);
       setMessageInput('');
+      
+      // Reset textarea height when input is cleared
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
+      
       clearTypingStatus(selectedConv.id, currentUser!.uid);
     } catch (error) {
       console.error('Send error:', error);
@@ -273,7 +256,6 @@ export default function MessagesPage() {
   const handleEmoji = () => console.log('Emoji picker (coming soon)');
   const handleVoiceMessage = () => console.log('Voice message (coming soon)');
 
-  // Typing broadcast on input change
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setMessageInput(val);
@@ -302,84 +284,21 @@ export default function MessagesPage() {
           </h2>
           <SearchInput value={searchTerm} onChange={handleSearchChange} />
         </div>
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {filteredConversations.length > 0 && (
-            <>
-              <div className="px-4 pt-4 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                Recent
-              </div>
-              {filteredConversations.map(conv => {
-                const convOtherId = conv.participants.find(id => id !== currentUser?.uid);
-                return (
-                  <button
-                    key={conv.id}
-                    onClick={() => handleSelectConversation(conv)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 transition-all duration-200 cursor-pointer border-b border-gray-100 ${
-                      selectedConv?.id === conv.id
-                        ? 'bg-gray-200 border-r-2 border-blue-500'
-                        : 'hover:bg-gray-50 border-r-2 border-transparent'
-                    }`}
-                  >
-                    <div className="relative flex-shrink-0">
-                      <div className="w-12 h-12 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-800 text-base font-medium shadow-sm">
-                        {getInitials(getConversationDisplayName(conv))}
-                      </div>
-                      {convOtherId && <PresenceDot uid={convOtherId} />}
-                    </div>
-                    <div className="flex-1 min-w-0 text-left">
-                      <p className="text-sm font-semibold text-gray-800 truncate">
-                        {getConversationDisplayName(conv)}
-                      </p>
-                      <p className="text-xs text-gray-500 truncate">
-                        {conv.lastMessage || 'Start a conversation'}
-                      </p>
-                    </div>
-                    <div className="text-xs text-gray-400 flex-shrink-0">
-                      {conv.lastMessageTime
-                        ? new Date(conv.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                        : ''}
-                    </div>
-                  </button>
-                );
-              })}
-            </>
-          )}
 
-          {filteredAllUsers.length > 0 && (
-            <>
-              <div className="px-4 pt-4 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider border-t border-gray-200">
-                All users
-              </div>
-              {filteredAllUsers.map(user => (
-                <div key={user.id} className="flex items-center justify-between px-4 py-3 border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-12 h-12 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-800 text-base font-medium shadow-sm flex-shrink-0">
-                      {getInitials(user.name || user.email)}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 truncate">{user.name || user.email}</p>
-                      <p className="text-xs text-gray-500 truncate">{user.email}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleStartNewChat(user)}
-                    className="px-3 py-1.5 bg-blue-500 text-white text-xs rounded-lg hover:bg-blue-600 transition-colors shadow-sm flex-shrink-0 ml-2"
-                  >
-                    Message
-                  </button>
-                </div>
-              ))}
-            </>
-          )}
-
-          {loadingUsers && <div className="text-center text-gray-400 text-sm py-8">Loading users...</div>}
-          {!loadingUsers && searchTerm && filteredConversations.length === 0 && filteredAllUsers.length === 0 && (
-            <div className="text-center text-gray-400 text-sm py-12">No users or conversations found</div>
-          )}
-          {!loadingUsers && !searchTerm && conversations.length === 0 && allUsers.length === 0 && (
-            <div className="text-center text-gray-400 text-sm py-12">No other users found</div>
-          )}
-        </div>
+        {/* New ConversationList component */}
+        <ConversationList
+          filteredConversations={filteredConversations}
+          selectedConvId={selectedConv?.id}
+          contactNames={contactNames}
+          currentUserId={currentUser?.uid}
+          filteredAllUsers={filteredAllUsers}
+          loadingUsers={loadingUsers}
+          searchTerm={searchTerm}
+          conversationsExist={conversations.length > 0}
+          allUsersExist={allUsers.length > 0}
+          onSelectConversation={handleSelectConversation}
+          onStartNewChat={handleStartNewChat}
+        />
       </div>
 
       {/* Right chat area */}
@@ -496,7 +415,6 @@ export default function MessagesPage() {
             {/* Input area – responsive */}
             <div className="p-2 bg-white/80 backdrop-blur-sm border-t border-gray-200">
               <div className="flex items-end gap-1 overflow-hidden">
-                {/* Attachment icons – hidden below 480px */}
                 <div className="hidden min-[480px]:flex gap-0.5 sm:gap-1">
                   <button
                     onClick={handleAttachFile}
@@ -516,6 +434,7 @@ export default function MessagesPage() {
 
                 <textarea
                   value={messageInput}
+                   ref={textareaRef}
                   onChange={handleInputChange}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
@@ -529,7 +448,6 @@ export default function MessagesPage() {
                   style={{ minHeight: '44px', maxHeight: '120px' }}
                 />
 
-                {/* Emoji & Mic – hidden below 480px */}
                 <div className="hidden min-[480px]:flex gap-0.5 sm:gap-1">
                   <button
                     onClick={handleEmoji}
